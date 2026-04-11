@@ -15,6 +15,7 @@ import PoliceDashboard from "@/pages/police";
 import NewIncident from "@/pages/police/new-incident";
 import MerchantPortal from "@/pages/merchant-portal";
 import DashboardSummary from "@/pages/dashboard";
+import CitizenReport from "@/pages/report";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/offers/:id" component={OfferDetail} />
         <Route path="/merchants" component={Merchants} />
         <Route path="/merchants/:id" component={MerchantProfile} />
+        <Route path="/report" component={CitizenReport} />
         <Route path="/police" component={PoliceDashboard} />
         <Route path="/police/new-incident" component={NewIncident} />
         <Route path="/merchant-portal" component={MerchantPortal} />

@@ -139,6 +139,23 @@ export default function Traffic() {
                     )}
                   </div>
 
+                  {/* Citizen photos */}
+                  {(incident as any).mediaUrls && (incident as any).mediaUrls.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1">
+                        📸 Citizen Photos
+                      </p>
+                      <div className="flex gap-2 overflow-x-auto">
+                        {(incident as any).mediaUrls
+                          .filter((u: string) => u.startsWith("data:image") || u.match(/\.(jpg|jpeg|png|webp)/i))
+                          .slice(0, 3)
+                          .map((url: string, idx: number) => (
+                            <img key={idx} src={url} alt="incident" className="w-20 h-16 rounded-lg object-cover shrink-0 border border-gray-200" />
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
                   {incident.alternateRoutes && incident.alternateRoutes.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <p className="text-xs font-bold text-gray-900 mb-2 flex items-center gap-1">

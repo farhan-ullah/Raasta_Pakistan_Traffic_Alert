@@ -1,19 +1,15 @@
 import { useState } from "react";
 import { useListIncidents, useCreateIncident, useUpdateIncident } from "@workspace/api-client-react";
-import { Shield, Plus, MapPin, Clock, AlertTriangle, CheckCircle, X, ChevronDown } from "lucide-react";
+import {
+  Shield, Plus, MapPin, Clock, AlertTriangle, CheckCircle,
+  X, ChevronDown, Camera, Users, ShieldCheck, Filter
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-
-const INCIDENT_TYPES = [
-  { value: "blockage", label: "Road Blockage", color: "bg-red-100 text-red-700 border-red-200" },
-  { value: "construction", label: "Construction", color: "bg-orange-100 text-orange-700 border-orange-200" },
-  { value: "vip_movement", label: "VIP Movement", color: "bg-purple-100 text-purple-700 border-purple-200" },
-  { value: "accident", label: "Accident", color: "bg-red-100 text-red-800 border-red-200" },
-  { value: "congestion", label: "Congestion", color: "bg-amber-100 text-amber-700 border-amber-200" },
-];
+import { Link } from "wouter";
 
 const SEVERITY_STYLES: Record<string, string> = {
   critical: "bg-red-600 text-white",
@@ -22,157 +18,342 @@ const SEVERITY_STYLES: Record<string, string> = {
   low: "bg-green-600 text-white",
 };
 
-const islamabadAreas = ["Blue Area", "F-6", "F-7", "F-8", "G-9", "G-11", "I-8", "Faizabad", "Zero Point", "Constitution Avenue", "Margalla Hills", "Pir Wadhai", "Diplomatic Enclave", "Federal Area"];
+const TYPE_EMOJI: Record<string, string> = {
+  blockage: "🚫", construction: "🚧", vip_movement: "👑",
+  accident: "💥", congestion: "🚗",
+};
+
+const ISLAMABAD_AREAS = [
+  "Blue Area", "F-6", "F-7", "F-8", "F-10", "G-9", "G-10", "G-11",
+  "I-8", "I-10", "Faizabad", "Zero Point", "Constitution Avenue",
+  "Margalla Hills", "Pir Wadhai", "PWD",
+];
+
+const INCIDENT_TYPES = [
+  { value: "blockage", label: "Road Blockage" },
+  { value: "construction", label: "Construction" },
+  { value: "vip_movement", label: "VIP Movement" },
+  { value: "accident", label: "Accident" },
+  { value: "congestion", label: "Congestion" },
+];
+
+type Tab = "citizen" | "post" | "resolved";
 
 export default function PoliceDashboard() {
+  const [tab, setTab] = useState<Tab>("citizen");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    type: "blockage",
-    title: "",
-    description: "",
-    location: "",
-    area: "",
-    severity: "medium",
-    officerName: "",
-    affectedRoads: "",
-    alternateRoutes: "",
-    estimatedDuration: "",
-    lat: 33.6844,
-    lng: 73.0479,
+    type: "blockage", title: "", description: "", location: "",
+    area: "", severity: "medium", officerName: "", badge: "",
+    affectedRoads: "", alternateRoutes: "", estimatedDuration: "",
   });
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: incidents, isLoading } = useListIncidents({ status: "all" }, { query: { refetchInterval: 10_000 } });
+  const { data: incidents = [], isLoading } = useListIncidents(
+    { status: "all" },
+    { query: { refetchInterval: 10_000 } }
+  );
   const createMutation = useCreateIncident();
   const updateMutation = useUpdateIncident();
+
+  const activeIncidents = incidents.filter(i => i.status === "active");
+  const resolvedIncidents = incidents.filter(i => i.status === "resolved");
+  const citizenReports = activeIncidents.filter(i => i.reportedBy === "citizen");
+  const policeReports = activeIncidents.filter(i => i.reportedBy !== "citizen");
+  const unverified = citizenReports.filter((i: any) => !i.isVerifiedByPolice);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title || !form.location) {
-      toast({ title: "Missing fields", description: "Title and location are required.", variant: "destructive" });
+      toast({ title: "Title and location required", variant: "destructive" });
       return;
     }
-
     try {
       await createMutation.mutateAsync({
         data: {
-          type: form.type as "blockage" | "construction" | "vip_movement" | "accident" | "congestion",
+          type: form.type as any,
           title: form.title,
           description: form.description,
           location: form.location,
           area: form.area,
           city: "Islamabad",
-          lat: form.lat,
-          lng: form.lng,
-          severity: form.severity as "low" | "medium" | "high" | "critical",
-          officerName: form.officerName,
+          lat: 33.6844 + (Math.random() - 0.5) * 0.08,
+          lng: 73.0479 + (Math.random() - 0.5) * 0.08,
+          severity: form.severity as any,
+          officerName: `${form.officerName}${form.badge ? ` (${form.badge})` : ""}`,
+          reportedBy: "police",
           affectedRoads: form.affectedRoads.split("\n").filter(Boolean),
           alternateRoutes: form.alternateRoutes.split("\n").filter(Boolean),
           estimatedDuration: form.estimatedDuration,
         }
       });
       await queryClient.invalidateQueries();
-      toast({ title: "Incident posted!", description: "Alert is now live on the map." });
+      toast({ title: "Alert posted!", description: "Live on the map now." });
       setShowForm(false);
-      setForm({ type: "blockage", title: "", description: "", location: "", area: "", severity: "medium", officerName: "", affectedRoads: "", alternateRoutes: "", estimatedDuration: "", lat: 33.6844, lng: 73.0479 });
+      setForm({ type: "blockage", title: "", description: "", location: "", area: "", severity: "medium", officerName: "", badge: "", affectedRoads: "", alternateRoutes: "", estimatedDuration: "" });
     } catch {
-      toast({ title: "Failed to post incident", variant: "destructive" });
+      toast({ title: "Failed to post", variant: "destructive" });
     }
   };
 
   const resolveIncident = async (id: string) => {
-    try {
-      await updateMutation.mutateAsync({ id, data: { status: "resolved" } });
+    await updateMutation.mutateAsync({ id, data: { status: "resolved" } });
+    await queryClient.invalidateQueries();
+    toast({ title: "Incident resolved ✓" });
+  };
+
+  const verifyReport = async (id: string) => {
+    const res = await fetch(`${import.meta.env.BASE_URL?.replace(/\/$/, "")}/api/incidents/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isVerifiedByPolice: true, severity: "high" }),
+    });
+    if (res.ok) {
       await queryClient.invalidateQueries();
-      toast({ title: "Incident resolved" });
-    } catch {
-      toast({ title: "Failed to resolve", variant: "destructive" });
+      toast({ title: "Report verified ✓", description: "Marked as police-verified." });
     }
   };
 
-  const activeIncidents = incidents?.filter(i => i.status === "active") || [];
-  const resolvedIncidents = incidents?.filter(i => i.status === "resolved") || [];
+  const IncidentCard = ({ incident, showVerify = false }: { incident: any; showVerify?: boolean }) => (
+    <Card className="bg-gray-900 border-gray-800 mb-3">
+      <CardContent className="p-4">
+        {/* Photos row */}
+        {incident.mediaUrls && incident.mediaUrls.length > 0 && (
+          <div className="flex gap-2 mb-3 overflow-x-auto">
+            {incident.mediaUrls
+              .filter((u: string) => u.startsWith("data:image") || u.match(/\.(jpg|jpeg|png|webp|gif)/i))
+              .slice(0, 3)
+              .map((url: string, idx: number) => (
+                <img
+                  key={idx}
+                  src={url}
+                  alt={`photo ${idx + 1}`}
+                  className="w-24 h-20 rounded-xl object-cover shrink-0 border border-gray-700"
+                />
+              ))}
+            {incident.mediaUrls.some((u: string) => u.startsWith("http") && !u.match(/\.(jpg|jpeg|png|webp|gif)/i)) && (
+              <div className="w-24 h-20 rounded-xl border border-gray-700 flex items-center justify-center text-xs text-gray-400 shrink-0">
+                📹 Video
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+              <span className="text-base">{TYPE_EMOJI[incident.type] || "⚠️"}</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${SEVERITY_STYLES[incident.severity] || "bg-gray-700 text-white"}`}>
+                {incident.severity?.toUpperCase()}
+              </span>
+              {incident.reportedBy === "citizen" && (
+                <Badge className={`text-[10px] ${(incident as any).isVerifiedByPolice ? "bg-blue-900/40 text-blue-300 border-blue-700" : "bg-yellow-900/40 text-yellow-300 border-yellow-700"}`}>
+                  {(incident as any).isVerifiedByPolice ? "✓ Verified" : "👤 Citizen"}
+                </Badge>
+              )}
+              {incident.reportedBy === "police" && (
+                <Badge className="text-[10px] bg-green-900/40 text-green-300 border-green-700">
+                  🚔 Police
+                </Badge>
+              )}
+            </div>
+            <h3 className="font-bold text-white text-sm leading-tight">{incident.title}</h3>
+            {incident.description && (
+              <p className="text-gray-400 text-xs mt-1 line-clamp-2">{incident.description}</p>
+            )}
+            <div className="flex items-center gap-1 text-gray-500 text-xs mt-1.5">
+              <MapPin className="w-3 h-3" />
+              <span className="truncate">{incident.location}</span>
+            </div>
+            {incident.officerName && (
+              <div className="text-xs text-gray-500 mt-0.5">👮 {incident.officerName}</div>
+            )}
+            {incident.estimatedDuration && (
+              <div className="flex items-center gap-1 text-gray-500 text-xs mt-0.5">
+                <Clock className="w-3 h-3" />
+                {incident.estimatedDuration}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5 shrink-0">
+            {showVerify && !(incident as any).isVerifiedByPolice && (
+              <Button
+                size="sm"
+                onClick={() => verifyReport(incident.id)}
+                className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-800 text-[10px] px-2 h-7"
+              >
+                <ShieldCheck className="w-3 h-3 mr-1" />
+                Verify
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => resolveIncident(incident.id)}
+              disabled={updateMutation.isPending}
+              className="bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-800 text-[10px] px-2 h-7"
+            >
+              ✓ Resolve
+            </Button>
+          </div>
+        </div>
+
+        {incident.alternateRoutes && incident.alternateRoutes.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-gray-800">
+            <p className="text-[10px] text-gray-500 mb-1">ALTERNATE ROUTES:</p>
+            <div className="flex flex-wrap gap-1">
+              {incident.alternateRoutes.map((r: string, i: number) => (
+                <span key={i} className="text-[10px] bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full">{r}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-20">
+      {/* Header */}
       <div className="bg-[#01411C] px-4 pt-4 pb-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="w-6 h-6" />
-            <h1 className="text-xl font-bold">Police Command</h1>
+            <div>
+              <h1 className="text-lg font-black">Police Command</h1>
+              <p className="text-green-200 text-[10px]">Islamabad Traffic Control</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            <span className="text-xs text-green-300 font-medium">LIVE</span>
+          <div className="flex items-center gap-2 bg-red-500 px-2 py-1 rounded-full">
+            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+            <span className="text-white text-[10px] font-bold">LIVE</span>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 mt-3">
-          <div className="bg-white/10 rounded-xl p-3 text-center">
-            <div className="text-2xl font-black text-red-300">{activeIncidents.length}</div>
-            <div className="text-xs text-white/70 mt-0.5">Active</div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-2 mt-3">
+          <div className="bg-white/10 rounded-xl p-2 text-center">
+            <div className="text-xl font-black text-red-300">{activeIncidents.length}</div>
+            <div className="text-[9px] text-white/60">Active</div>
           </div>
-          <div className="bg-white/10 rounded-xl p-3 text-center">
-            <div className="text-2xl font-black text-green-300">{resolvedIncidents.length}</div>
-            <div className="text-xs text-white/70 mt-0.5">Resolved</div>
+          <div className="bg-white/10 rounded-xl p-2 text-center">
+            <div className="text-xl font-black text-yellow-300">{unverified.length}</div>
+            <div className="text-[9px] text-white/60">Unverified</div>
           </div>
-          <div className="bg-white/10 rounded-xl p-3 text-center">
-            <div className="text-2xl font-black text-amber-300">
-              {activeIncidents.filter(i => i.severity === "critical").length}
-            </div>
-            <div className="text-xs text-white/70 mt-0.5">Critical</div>
+          <div className="bg-white/10 rounded-xl p-2 text-center">
+            <div className="text-xl font-black text-blue-300">{citizenReports.length}</div>
+            <div className="text-[9px] text-white/60">Citizens</div>
+          </div>
+          <div className="bg-white/10 rounded-xl p-2 text-center">
+            <div className="text-xl font-black text-green-300">{resolvedIncidents.length}</div>
+            <div className="text-[9px] text-white/60">Resolved</div>
           </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Report New Incident
-        </Button>
+      {/* Tabs */}
+      <div className="flex border-b border-gray-800 bg-gray-950 sticky top-0 z-10">
+        {([
+          { key: "citizen", label: "Citizen Reports", count: citizenReports.length, icon: <Users className="w-3.5 h-3.5" /> },
+          { key: "post", label: "Post Alert", icon: <Plus className="w-3.5 h-3.5" /> },
+          { key: "resolved", label: "Resolved", count: resolvedIncidents.length, icon: <CheckCircle className="w-3.5 h-3.5" /> },
+        ] as { key: Tab; label: string; count?: number; icon: React.ReactNode }[]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold border-b-2 transition-colors ${
+              tab === t.key ? "border-[#01411C] text-[#25a244]" : "border-transparent text-gray-500"
+            }`}
+          >
+            {t.icon}
+            <span>{t.label}</span>
+            {t.count !== undefined && t.count > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${tab === t.key ? "bg-[#01411C] text-white" : "bg-gray-800 text-gray-400"}`}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-        {showForm && (
-          <Card className="bg-gray-900 border-gray-700 text-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span>New Incident Report</span>
-                <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+      <div className="p-4">
+        {/* Citizen Reports Tab */}
+        {tab === "citizen" && (
+          <div>
+            {unverified.length > 0 && (
+              <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl px-3 py-2 mb-4 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
+                <p className="text-yellow-300 text-xs font-medium">
+                  {unverified.length} citizen report{unverified.length > 1 ? "s" : ""} awaiting police verification
+                </p>
+              </div>
+            )}
+
+            {isLoading ? (
+              [...Array(3)].map((_, i) => <div key={i} className="h-28 bg-gray-800 animate-pulse rounded-2xl mb-3" />)
+            ) : citizenReports.length === 0 ? (
+              <div className="text-center py-12 text-gray-600">
+                <Camera className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No citizen reports right now</p>
+                <p className="text-xs mt-1">Reports submitted by citizens will appear here</p>
+              </div>
+            ) : (
+              citizenReports.map(incident => (
+                <IncidentCard key={incident.id} incident={incident} showVerify={true} />
+              ))
+            )}
+
+            {policeReports.length > 0 && (
+              <>
+                <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-3 mt-4 flex items-center gap-2">
+                  <Shield className="w-3.5 h-3.5" />
+                  Police-Posted ({policeReports.length})
+                </h3>
+                {policeReports.map(incident => (
+                  <IncidentCard key={incident.id} incident={incident} />
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Post Alert Tab */}
+        {tab === "post" && (
+          <div className="space-y-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4">
+              <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-green-400" />
+                Post Official Police Alert
+              </h3>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Incident Type</label>
+                  <p className="text-xs text-gray-400 mb-2">Incident Type</p>
                   <div className="grid grid-cols-2 gap-2">
                     {INCIDENT_TYPES.map(t => (
                       <button
                         key={t.value}
                         type="button"
                         onClick={() => setForm(f => ({ ...f, type: t.value }))}
-                        className={`p-2 rounded-xl text-xs font-medium border transition-all ${
-                          form.type === t.value ? "bg-white/20 border-white/40" : "bg-white/5 border-white/10"
+                        className={`py-2 px-3 rounded-xl text-xs font-medium border transition-all ${
+                          form.type === t.value ? "bg-white/20 border-white/40 text-white" : "bg-white/5 border-white/10 text-gray-400"
                         }`}
                       >
-                        {t.label}
+                        {TYPE_EMOJI[t.value]} {t.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Severity</label>
+                  <p className="text-xs text-gray-400 mb-2">Severity</p>
                   <div className="grid grid-cols-4 gap-1">
                     {["low", "medium", "high", "critical"].map(s => (
                       <button
                         key={s}
                         type="button"
                         onClick={() => setForm(f => ({ ...f, severity: s }))}
-                        className={`py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                        className={`py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all ${
                           form.severity === s ? SEVERITY_STYLES[s] : "bg-white/10 text-gray-400"
                         }`}
                       >
@@ -182,159 +363,89 @@ export default function PoliceDashboard() {
                   </div>
                 </div>
 
-                <input
-                  value={form.title}
-                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Incident title *"
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-500 focus:outline-none focus:border-white/40"
-                />
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Incident title *" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={form.officerName} onChange={e => setForm(f => ({ ...f, officerName: e.target.value }))}
+                    placeholder="Officer name" className="bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
+                  <input value={form.badge} onChange={e => setForm(f => ({ ...f, badge: e.target.value }))}
+                    placeholder="Badge #" className="bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
+                </div>
 
                 <div className="relative">
-                  <select
-                    value={form.area}
-                    onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
-                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white appearance-none focus:outline-none focus:border-white/40"
-                  >
-                    <option value="" className="bg-gray-800">Select Area</option>
-                    {islamabadAreas.map(a => (
-                      <option key={a} value={a} className="bg-gray-800">{a}</option>
-                    ))}
+                  <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white appearance-none focus:outline-none focus:border-white/40">
+                    <option value="" className="bg-gray-900">Select area</option>
+                    {ISLAMABAD_AREAS.map(a => <option key={a} value={a} className="bg-gray-900">{a}</option>)}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 </div>
 
-                <input
-                  value={form.location}
-                  onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  placeholder="Specific location / street *"
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-500 focus:outline-none focus:border-white/40"
-                />
+                <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                  placeholder="Street / landmark *" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
 
-                <textarea
-                  value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Description of the incident..."
-                  rows={3}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none"
-                />
+                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Situation description..." rows={3}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
 
-                <input
-                  value={form.officerName}
-                  onChange={e => setForm(f => ({ ...f, officerName: e.target.value }))}
-                  placeholder="Officer name / badge"
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-500 focus:outline-none focus:border-white/40"
-                />
+                <textarea value={form.affectedRoads} onChange={e => setForm(f => ({ ...f, affectedRoads: e.target.value }))}
+                  placeholder="Affected roads (one per line)" rows={2}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
 
-                <textarea
-                  value={form.affectedRoads}
-                  onChange={e => setForm(f => ({ ...f, affectedRoads: e.target.value }))}
-                  placeholder="Affected roads (one per line)"
-                  rows={2}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none"
-                />
+                <textarea value={form.alternateRoutes} onChange={e => setForm(f => ({ ...f, alternateRoutes: e.target.value }))}
+                  placeholder="Alternate routes (one per line)" rows={2}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
 
-                <textarea
-                  value={form.alternateRoutes}
-                  onChange={e => setForm(f => ({ ...f, alternateRoutes: e.target.value }))}
-                  placeholder="Alternate routes (one per line)"
-                  rows={2}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none"
-                />
+                <input value={form.estimatedDuration} onChange={e => setForm(f => ({ ...f, estimatedDuration: e.target.value }))}
+                  placeholder="Estimated duration (e.g. 2 hours)" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
 
-                <input
-                  value={form.estimatedDuration}
-                  onChange={e => setForm(f => ({ ...f, estimatedDuration: e.target.value }))}
-                  placeholder="Estimated duration (e.g. 2 hours)"
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-500 focus:outline-none focus:border-white/40"
-                />
-
-                <Button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="w-full bg-[#01411C] hover:bg-[#025a28] font-bold py-3 rounded-xl"
-                >
-                  {createMutation.isPending ? "Posting..." : "Post Live Alert"}
+                <Button type="submit" disabled={createMutation.isPending}
+                  className="w-full bg-[#01411C] hover:bg-[#025a28] font-bold py-3 rounded-xl text-sm">
+                  {createMutation.isPending ? "Posting..." : "🚔 Post Live Alert"}
                 </Button>
               </form>
-            </CardContent>
-          </Card>
+            </div>
+
+            {/* Quick link to merchant portal */}
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4 text-center">
+              <p className="text-gray-400 text-sm mb-3">Looking for the merchant or analytics dashboard?</p>
+              <div className="flex gap-2 justify-center">
+                <Link href="/merchant-portal">
+                  <Button size="sm" variant="outline" className="border-gray-600 text-gray-300 text-xs">🏪 Merchant Portal</Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button size="sm" variant="outline" className="border-gray-600 text-gray-300 text-xs">📊 Analytics</Button>
+                </Link>
+              </div>
+            </div>
+          </div>
         )}
 
-        <div>
-          <h2 className="font-bold text-white mb-3 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-400" />
-            Active Incidents
-          </h2>
-          {isLoading ? (
-            [...Array(3)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-800 animate-pulse rounded-2xl mb-3" />
-            ))
-          ) : activeIncidents.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <CheckCircle className="w-10 h-10 mx-auto mb-2 text-green-600" />
-              <p>No active incidents</p>
-            </div>
-          ) : (
-            activeIncidents.map(incident => (
-              <Card key={incident.id} className="bg-gray-900 border-gray-800 mb-3">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${SEVERITY_STYLES[incident.severity] || "bg-gray-700 text-white"}`}>
-                          {incident.severity?.toUpperCase()}
-                        </span>
-                        <span className="text-xs text-gray-400 capitalize">{incident.type?.replace(/_/g, " ")}</span>
-                      </div>
-                      <h3 className="font-bold text-white text-sm">{incident.title}</h3>
-                      <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
-                        <MapPin className="w-3 h-3" />
-                        <span>{incident.location}</span>
-                      </div>
-                      {incident.officerName && (
-                        <div className="text-xs text-gray-500 mt-0.5">Officer: {incident.officerName}</div>
-                      )}
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => resolveIncident(incident.id)}
-                      disabled={updateMutation.isPending}
-                      className="bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-800 text-xs px-3 shrink-0"
-                    >
-                      Resolve
-                    </Button>
-                  </div>
-                  {incident.estimatedDuration && (
-                    <div className="flex items-center gap-1 text-gray-500 text-xs mt-2">
-                      <Clock className="w-3 h-3" />
-                      <span>Est. clear: {incident.estimatedDuration}</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-
-        {resolvedIncidents.length > 0 && (
+        {/* Resolved Tab */}
+        {tab === "resolved" && (
           <div>
-            <h2 className="font-bold text-gray-400 mb-3 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-500" />
-              Resolved Today ({resolvedIncidents.length})
-            </h2>
-            {resolvedIncidents.slice(0, 3).map(incident => (
-              <Card key={incident.id} className="bg-gray-900/50 border-gray-800 mb-2 opacity-60">
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                    <div>
-                      <h4 className="text-sm text-gray-400 font-medium">{incident.title}</h4>
-                      <p className="text-xs text-gray-600">{incident.location}</p>
+            {resolvedIncidents.length === 0 ? (
+              <div className="text-center py-12 text-gray-600">
+                <CheckCircle className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No resolved incidents yet</p>
+              </div>
+            ) : (
+              resolvedIncidents.slice(0, 20).map(incident => (
+                <Card key={incident.id} className="bg-gray-900/60 border-gray-800 mb-3 opacity-70">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{TYPE_EMOJI[incident.type] || "⚠️"}</span>
+                        <h4 className="text-sm text-gray-300 font-medium truncate">{incident.title}</h4>
+                      </div>
+                      <p className="text-xs text-gray-600 truncate mt-0.5">{incident.location}</p>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         )}
       </div>

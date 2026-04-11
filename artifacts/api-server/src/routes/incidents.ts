@@ -108,6 +108,9 @@ router.post("/incidents", async (req, res): Promise<void> => {
       affectedRoads: parsed.data.affectedRoads as string[] | undefined,
       alternateRoutes: parsed.data.alternateRoutes as string[] | undefined,
       estimatedDuration: parsed.data.estimatedDuration,
+      mediaUrls: (parsed.data as any).mediaUrls as string[] | undefined,
+      reporterPhone: (parsed.data as any).reporterPhone as string | undefined,
+      isVerifiedByPolice: (parsed.data as any).isVerifiedByPolice ?? false,
     })
     .returning();
 
