@@ -8,6 +8,7 @@ import {
   UpdateIncidentParams,
   ListIncidentsQueryParams,
 } from "@workspace/api-zod";
+import { requirePoliceAuth } from "../middleware/policeAuth";
 
 const router: IRouter = Router();
 
@@ -84,7 +85,14 @@ router.get("/incidents", async (req, res): Promise<void> => {
   })));
 });
 
-router.post("/incidents", async (req, res): Promise<void> => {
+router.post("/incidents", async (req, res, next): Promise<void> => {
+  const body = req.body as { reportedBy?: string };
+  if (body.reportedBy === "police") {
+    requirePoliceAuth(req, res, next);
+    return;
+  }
+  next();
+}, async (req, res): Promise<void> => {
   const parsed = CreateIncidentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -138,7 +146,7 @@ router.get("/incidents/:id", async (req, res): Promise<void> => {
   res.json({ ...incident, id: String(incident.id) });
 });
 
-router.patch("/incidents/:id", async (req, res): Promise<void> => {
+router.patch("/incidents/:id", requirePoliceAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(rawId, 10);
   if (isNaN(id)) {

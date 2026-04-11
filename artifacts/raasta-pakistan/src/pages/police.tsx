@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useListIncidents, useCreateIncident, useUpdateIncident } from "@workspace/api-client-react";
+import { useState, useEffect, useCallback } from "react";
+import { useListIncidents } from "@workspace/api-client-react";
 import {
   Shield, Plus, MapPin, Clock, AlertTriangle, CheckCircle,
-  X, ChevronDown, Camera, Users, ShieldCheck, Filter
+  X, ChevronDown, Camera, Users, ShieldCheck, LogOut, Lock, Eye, EyeOff
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,24 +11,23 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+const TOKEN_KEY = "raasta_police_token";
+
 const SEVERITY_STYLES: Record<string, string> = {
   critical: "bg-red-600 text-white",
   high: "bg-orange-500 text-white",
   medium: "bg-amber-500 text-white",
   low: "bg-green-600 text-white",
 };
-
 const TYPE_EMOJI: Record<string, string> = {
-  blockage: "🚫", construction: "🚧", vip_movement: "👑",
-  accident: "💥", congestion: "🚗",
+  blockage: "🚫", construction: "🚧", vip_movement: "👑", accident: "💥", congestion: "🚗",
 };
-
 const ISLAMABAD_AREAS = [
   "Blue Area", "F-6", "F-7", "F-8", "F-10", "G-9", "G-10", "G-11",
   "I-8", "I-10", "Faizabad", "Zero Point", "Constitution Avenue",
   "Margalla Hills", "Pir Wadhai", "PWD",
 ];
-
 const INCIDENT_TYPES = [
   { value: "blockage", label: "Road Blockage" },
   { value: "construction", label: "Construction" },
@@ -39,23 +38,150 @@ const INCIDENT_TYPES = [
 
 type Tab = "citizen" | "post" | "resolved";
 
+function policeHeaders(token: string) {
+  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+}
+
+function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
+  const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { toast } = useToast();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pin.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${BASE}/api/auth/police/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      if (res.ok) {
+        const { token } = await res.json() as { token: string };
+        localStorage.setItem(TOKEN_KEY, token);
+        toast({ title: "Access granted", description: "Welcome, Officer." });
+        onLogin(token);
+      } else {
+        setError("Invalid access code. Contact your supervisor.");
+      }
+    } catch {
+      setError("Connection error. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-[#01411C] rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/40">
+            <Shield className="w-10 h-10 text-white" />
+          </div>
+          <h1 className="text-2xl font-black text-white">Police Command</h1>
+          <p className="text-gray-400 text-sm mt-1">Raasta — Islamabad Traffic Control</p>
+        </div>
+
+        <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <Lock className="w-4 h-4 text-[#25a244]" />
+            <p className="text-sm text-gray-300 font-medium">Officer Access Code Required</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="relative">
+              <input
+                type={showPin ? "text" : "password"}
+                value={pin}
+                onChange={e => { setPin(e.target.value); setError(""); }}
+                placeholder="Enter access code"
+                maxLength={30}
+                autoComplete="current-password"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 pr-12 focus:outline-none focus:border-[#01411C] text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+              >
+                {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 bg-red-900/30 border border-red-800/50 rounded-xl px-3 py-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <p className="text-red-300 text-xs">{error}</p>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={loading || !pin.trim()}
+              className="w-full bg-[#01411C] hover:bg-[#025a28] font-bold py-3 rounded-xl text-sm"
+            >
+              {loading ? "Verifying..." : "🚔 Enter Portal"}
+            </Button>
+          </form>
+
+          <p className="text-center text-[11px] text-gray-600 mt-4">
+            Access restricted to authorized Islamabad Traffic Police officers.
+          </p>
+        </div>
+
+        <Link href="/">
+          <p className="text-center text-xs text-gray-600 mt-5 hover:text-gray-400">← Back to Map</p>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function PoliceDashboard() {
+  const [token, setToken] = useState<string | null>(null);
+  const [checkingToken, setCheckingToken] = useState(true);
   const [tab, setTab] = useState<Tab>("citizen");
-  const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     type: "blockage", title: "", description: "", location: "",
-    area: "", severity: "medium", officerName: "", badge: "",
+    area: "", customArea: "", severity: "medium", officerName: "", badge: "",
     affectedRoads: "", alternateRoutes: "", estimatedDuration: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const saved = localStorage.getItem(TOKEN_KEY);
+    if (!saved) { setCheckingToken(false); return; }
+    fetch(`${BASE}/api/auth/police/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: saved }),
+    })
+      .then(r => r.json() as Promise<{ valid: boolean }>)
+      .then(({ valid }) => {
+        if (valid) setToken(saved);
+        else localStorage.removeItem(TOKEN_KEY);
+      })
+      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .finally(() => setCheckingToken(false));
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    toast({ title: "Logged out", description: "Police session ended." });
+  };
+
   const { data: incidents = [], isLoading } = useListIncidents(
     { status: "all" },
-    { query: { refetchInterval: 10_000 } }
+    { query: { refetchInterval: token ? 10_000 : false } }
   );
-  const createMutation = useCreateIncident();
-  const updateMutation = useUpdateIncident();
 
   const activeIncidents = incidents.filter(i => i.status === "active");
   const resolvedIncidents = incidents.filter(i => i.status === "resolved");
@@ -65,48 +191,59 @@ export default function PoliceDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.location) {
-      toast({ title: "Title and location required", variant: "destructive" });
-      return;
-    }
+    if (!form.title || !form.location || !token) return;
+    const finalArea = form.customArea.trim() || form.area;
+    setSubmitting(true);
     try {
-      await createMutation.mutateAsync({
-        data: {
-          type: form.type as any,
+      const res = await fetch(`${BASE}/api/incidents`, {
+        method: "POST",
+        headers: policeHeaders(token),
+        body: JSON.stringify({
+          type: form.type,
           title: form.title,
           description: form.description,
           location: form.location,
-          area: form.area,
+          area: finalArea,
           city: "Islamabad",
           lat: 33.6844 + (Math.random() - 0.5) * 0.08,
           lng: 73.0479 + (Math.random() - 0.5) * 0.08,
-          severity: form.severity as any,
+          severity: form.severity,
           officerName: `${form.officerName}${form.badge ? ` (${form.badge})` : ""}`,
           reportedBy: "police",
           affectedRoads: form.affectedRoads.split("\n").filter(Boolean),
           alternateRoutes: form.alternateRoutes.split("\n").filter(Boolean),
           estimatedDuration: form.estimatedDuration,
-        }
+        }),
       });
+      if (!res.ok) throw new Error();
       await queryClient.invalidateQueries();
       toast({ title: "Alert posted!", description: "Live on the map now." });
-      setShowForm(false);
-      setForm({ type: "blockage", title: "", description: "", location: "", area: "", severity: "medium", officerName: "", badge: "", affectedRoads: "", alternateRoutes: "", estimatedDuration: "" });
+      setForm({ type: "blockage", title: "", description: "", location: "", area: "", customArea: "", severity: "medium", officerName: "", badge: "", affectedRoads: "", alternateRoutes: "", estimatedDuration: "" });
     } catch {
-      toast({ title: "Failed to post", variant: "destructive" });
+      toast({ title: "Failed to post alert", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const resolveIncident = async (id: string) => {
-    await updateMutation.mutateAsync({ id, data: { status: "resolved" } });
-    await queryClient.invalidateQueries();
-    toast({ title: "Incident resolved ✓" });
+    if (!token) return;
+    const res = await fetch(`${BASE}/api/incidents/${id}`, {
+      method: "PATCH",
+      headers: policeHeaders(token),
+      body: JSON.stringify({ status: "resolved" }),
+    });
+    if (res.ok) {
+      await queryClient.invalidateQueries();
+      toast({ title: "Incident resolved ✓" });
+    }
   };
 
   const verifyReport = async (id: string) => {
-    const res = await fetch(`${import.meta.env.BASE_URL?.replace(/\/$/, "")}/api/incidents/${id}`, {
+    if (!token) return;
+    const res = await fetch(`${BASE}/api/incidents/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: policeHeaders(token),
       body: JSON.stringify({ isVerifiedByPolice: true, severity: "high" }),
     });
     if (res.ok) {
@@ -118,28 +255,20 @@ export default function PoliceDashboard() {
   const IncidentCard = ({ incident, showVerify = false }: { incident: any; showVerify?: boolean }) => (
     <Card className="bg-gray-900 border-gray-800 mb-3">
       <CardContent className="p-4">
-        {/* Photos row */}
         {incident.mediaUrls && incident.mediaUrls.length > 0 && (
           <div className="flex gap-2 mb-3 overflow-x-auto">
             {incident.mediaUrls
               .filter((u: string) => u.startsWith("data:image") || u.match(/\.(jpg|jpeg|png|webp|gif)/i))
               .slice(0, 3)
               .map((url: string, idx: number) => (
-                <img
-                  key={idx}
-                  src={url}
-                  alt={`photo ${idx + 1}`}
-                  className="w-24 h-20 rounded-xl object-cover shrink-0 border border-gray-700"
-                />
+                <img key={idx} src={url} alt={`photo ${idx + 1}`}
+                  className="w-24 h-20 rounded-xl object-cover shrink-0 border border-gray-700" />
               ))}
             {incident.mediaUrls.some((u: string) => u.startsWith("http") && !u.match(/\.(jpg|jpeg|png|webp|gif)/i)) && (
-              <div className="w-24 h-20 rounded-xl border border-gray-700 flex items-center justify-center text-xs text-gray-400 shrink-0">
-                📹 Video
-              </div>
+              <div className="w-24 h-20 rounded-xl border border-gray-700 flex items-center justify-center text-xs text-gray-400 shrink-0">📹 Video</div>
             )}
           </div>
         )}
-
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5 mb-1">
@@ -148,57 +277,39 @@ export default function PoliceDashboard() {
                 {incident.severity?.toUpperCase()}
               </span>
               {incident.reportedBy === "citizen" && (
-                <Badge className={`text-[10px] ${(incident as any).isVerifiedByPolice ? "bg-blue-900/40 text-blue-300 border-blue-700" : "bg-yellow-900/40 text-yellow-300 border-yellow-700"}`}>
-                  {(incident as any).isVerifiedByPolice ? "✓ Verified" : "👤 Citizen"}
+                <Badge className={`text-[10px] ${incident.isVerifiedByPolice ? "bg-blue-900/40 text-blue-300 border-blue-700" : "bg-yellow-900/40 text-yellow-300 border-yellow-700"}`}>
+                  {incident.isVerifiedByPolice ? "✓ Verified" : "👤 Citizen"}
                 </Badge>
               )}
               {incident.reportedBy === "police" && (
-                <Badge className="text-[10px] bg-green-900/40 text-green-300 border-green-700">
-                  🚔 Police
-                </Badge>
+                <Badge className="text-[10px] bg-green-900/40 text-green-300 border-green-700">🚔 Police</Badge>
               )}
             </div>
             <h3 className="font-bold text-white text-sm leading-tight">{incident.title}</h3>
-            {incident.description && (
-              <p className="text-gray-400 text-xs mt-1 line-clamp-2">{incident.description}</p>
-            )}
+            {incident.description && <p className="text-gray-400 text-xs mt-1 line-clamp-2">{incident.description}</p>}
             <div className="flex items-center gap-1 text-gray-500 text-xs mt-1.5">
-              <MapPin className="w-3 h-3" />
-              <span className="truncate">{incident.location}</span>
+              <MapPin className="w-3 h-3" /><span className="truncate">{incident.location}</span>
             </div>
-            {incident.officerName && (
-              <div className="text-xs text-gray-500 mt-0.5">👮 {incident.officerName}</div>
-            )}
+            {incident.officerName && <div className="text-xs text-gray-500 mt-0.5">👮 {incident.officerName}</div>}
             {incident.estimatedDuration && (
               <div className="flex items-center gap-1 text-gray-500 text-xs mt-0.5">
-                <Clock className="w-3 h-3" />
-                {incident.estimatedDuration}
+                <Clock className="w-3 h-3" />{incident.estimatedDuration}
               </div>
             )}
           </div>
-
           <div className="flex flex-col gap-1.5 shrink-0">
-            {showVerify && !(incident as any).isVerifiedByPolice && (
-              <Button
-                size="sm"
-                onClick={() => verifyReport(incident.id)}
-                className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-800 text-[10px] px-2 h-7"
-              >
-                <ShieldCheck className="w-3 h-3 mr-1" />
-                Verify
+            {showVerify && !incident.isVerifiedByPolice && (
+              <Button size="sm" onClick={() => verifyReport(incident.id)}
+                className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-800 text-[10px] px-2 h-7">
+                <ShieldCheck className="w-3 h-3 mr-1" />Verify
               </Button>
             )}
-            <Button
-              size="sm"
-              onClick={() => resolveIncident(incident.id)}
-              disabled={updateMutation.isPending}
-              className="bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-800 text-[10px] px-2 h-7"
-            >
+            <Button size="sm" onClick={() => resolveIncident(incident.id)}
+              className="bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-800 text-[10px] px-2 h-7">
               ✓ Resolve
             </Button>
           </div>
         </div>
-
         {incident.alternateRoutes && incident.alternateRoutes.length > 0 && (
           <div className="mt-2 pt-2 border-t border-gray-800">
             <p className="text-[10px] text-gray-500 mb-1">ALTERNATE ROUTES:</p>
@@ -213,9 +324,20 @@ export default function PoliceDashboard() {
     </Card>
   );
 
+  if (checkingToken) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#01411C] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!token) {
+    return <LoginScreen onLogin={setToken} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-20">
-      {/* Header */}
       <div className="bg-[#01411C] px-4 pt-4 pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -225,13 +347,17 @@ export default function PoliceDashboard() {
               <p className="text-green-200 text-[10px]">Islamabad Traffic Control</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-red-500 px-2 py-1 rounded-full">
-            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-            <span className="text-white text-[10px] font-bold">LIVE</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-red-500 px-2 py-1 rounded-full">
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              <span className="text-white text-[10px] font-bold">LIVE</span>
+            </div>
+            <button onClick={logout} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-colors" title="Logout">
+              <LogOut className="w-4 h-4 text-white" />
+            </button>
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-2 mt-3">
           <div className="bg-white/10 rounded-xl p-2 text-center">
             <div className="text-xl font-black text-red-300">{activeIncidents.length}</div>
@@ -252,22 +378,17 @@ export default function PoliceDashboard() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-gray-800 bg-gray-950 sticky top-0 z-10">
         {([
           { key: "citizen", label: "Citizen Reports", count: citizenReports.length, icon: <Users className="w-3.5 h-3.5" /> },
           { key: "post", label: "Post Alert", icon: <Plus className="w-3.5 h-3.5" /> },
           { key: "resolved", label: "Resolved", count: resolvedIncidents.length, icon: <CheckCircle className="w-3.5 h-3.5" /> },
         ] as { key: Tab; label: string; count?: number; icon: React.ReactNode }[]).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+          <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold border-b-2 transition-colors ${
               tab === t.key ? "border-[#01411C] text-[#25a244]" : "border-transparent text-gray-500"
-            }`}
-          >
-            {t.icon}
-            <span>{t.label}</span>
+            }`}>
+            {t.icon}<span>{t.label}</span>
             {t.count !== undefined && t.count > 0 && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${tab === t.key ? "bg-[#01411C] text-white" : "bg-gray-800 text-gray-400"}`}>
                 {t.count}
@@ -278,18 +399,16 @@ export default function PoliceDashboard() {
       </div>
 
       <div className="p-4">
-        {/* Citizen Reports Tab */}
         {tab === "citizen" && (
           <div>
             {unverified.length > 0 && (
               <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl px-3 py-2 mb-4 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
                 <p className="text-yellow-300 text-xs font-medium">
-                  {unverified.length} citizen report{unverified.length > 1 ? "s" : ""} awaiting police verification
+                  {unverified.length} citizen report{unverified.length > 1 ? "s" : ""} awaiting verification
                 </p>
               </div>
             )}
-
             {isLoading ? (
               [...Array(3)].map((_, i) => <div key={i} className="h-28 bg-gray-800 animate-pulse rounded-2xl mb-3" />)
             ) : citizenReports.length === 0 ? (
@@ -299,117 +418,96 @@ export default function PoliceDashboard() {
                 <p className="text-xs mt-1">Reports submitted by citizens will appear here</p>
               </div>
             ) : (
-              citizenReports.map(incident => (
-                <IncidentCard key={incident.id} incident={incident} showVerify={true} />
-              ))
+              citizenReports.map(incident => <IncidentCard key={incident.id} incident={incident} showVerify={true} />)
             )}
-
             {policeReports.length > 0 && (
               <>
                 <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-3 mt-4 flex items-center gap-2">
-                  <Shield className="w-3.5 h-3.5" />
-                  Police-Posted ({policeReports.length})
+                  <Shield className="w-3.5 h-3.5" />Police-Posted ({policeReports.length})
                 </h3>
-                {policeReports.map(incident => (
-                  <IncidentCard key={incident.id} incident={incident} />
-                ))}
+                {policeReports.map(incident => <IncidentCard key={incident.id} incident={incident} />)}
               </>
             )}
           </div>
         )}
 
-        {/* Post Alert Tab */}
         {tab === "post" && (
           <div className="space-y-4">
             <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4">
               <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-green-400" />
-                Post Official Police Alert
+                <Shield className="w-4 h-4 text-green-400" />Post Official Police Alert
               </h3>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                   <p className="text-xs text-gray-400 mb-2">Incident Type</p>
                   <div className="grid grid-cols-2 gap-2">
                     {INCIDENT_TYPES.map(t => (
-                      <button
-                        key={t.value}
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, type: t.value }))}
+                      <button key={t.value} type="button" onClick={() => setForm(f => ({ ...f, type: t.value }))}
                         className={`py-2 px-3 rounded-xl text-xs font-medium border transition-all ${
                           form.type === t.value ? "bg-white/20 border-white/40 text-white" : "bg-white/5 border-white/10 text-gray-400"
-                        }`}
-                      >
+                        }`}>
                         {TYPE_EMOJI[t.value]} {t.label}
                       </button>
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <p className="text-xs text-gray-400 mb-2">Severity</p>
                   <div className="grid grid-cols-4 gap-1">
                     {["low", "medium", "high", "critical"].map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, severity: s }))}
+                      <button key={s} type="button" onClick={() => setForm(f => ({ ...f, severity: s }))}
                         className={`py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all ${
                           form.severity === s ? SEVERITY_STYLES[s] : "bg-white/10 text-gray-400"
-                        }`}
-                      >
+                        }`}>
                         {s}
                       </button>
                     ))}
                   </div>
                 </div>
-
                 <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="Incident title *" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
-
                 <div className="grid grid-cols-2 gap-2">
                   <input value={form.officerName} onChange={e => setForm(f => ({ ...f, officerName: e.target.value }))}
                     placeholder="Officer name" className="bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
                   <input value={form.badge} onChange={e => setForm(f => ({ ...f, badge: e.target.value }))}
                     placeholder="Badge #" className="bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
                 </div>
-
                 <div className="relative">
-                  <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
-                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white appearance-none focus:outline-none focus:border-white/40">
-                    <option value="" className="bg-gray-900">Select area</option>
+                  <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value, customArea: "" }))}
+                    className={`w-full bg-white/10 border rounded-xl px-3 py-2.5 text-sm text-white appearance-none focus:outline-none focus:border-white/40 ${form.customArea ? "border-white/10 text-gray-500" : "border-white/20"}`}>
+                    <option value="" className="bg-gray-900">Select area from list...</option>
                     {ISLAMABAD_AREAS.map(a => <option key={a} value={a} className="bg-gray-900">{a}</option>)}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 </div>
-
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-gray-700" />
+                  <span className="text-[11px] text-gray-500 shrink-0">or type manually</span>
+                  <div className="flex-1 h-px bg-gray-700" />
+                </div>
+                <input value={form.customArea} onChange={e => setForm(f => ({ ...f, customArea: e.target.value, area: e.target.value ? "" : f.area }))}
+                  placeholder="e.g. New Islamabad, Koral, Tarlai..." className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
                 <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
                   placeholder="Street / landmark *" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
-
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Situation description..." rows={3}
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
-
                 <textarea value={form.affectedRoads} onChange={e => setForm(f => ({ ...f, affectedRoads: e.target.value }))}
                   placeholder="Affected roads (one per line)" rows={2}
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
-
                 <textarea value={form.alternateRoutes} onChange={e => setForm(f => ({ ...f, alternateRoutes: e.target.value }))}
                   placeholder="Alternate routes (one per line)" rows={2}
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
-
                 <input value={form.estimatedDuration} onChange={e => setForm(f => ({ ...f, estimatedDuration: e.target.value }))}
                   placeholder="Estimated duration (e.g. 2 hours)" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
-
-                <Button type="submit" disabled={createMutation.isPending}
+                <Button type="submit" disabled={submitting || !form.title || !form.location}
                   className="w-full bg-[#01411C] hover:bg-[#025a28] font-bold py-3 rounded-xl text-sm">
-                  {createMutation.isPending ? "Posting..." : "🚔 Post Live Alert"}
+                  {submitting ? "Posting..." : "🚔 Post Live Alert"}
                 </Button>
               </form>
             </div>
-
-            {/* Quick link to merchant portal */}
             <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4 text-center">
-              <p className="text-gray-400 text-sm mb-3">Looking for the merchant or analytics dashboard?</p>
+              <p className="text-gray-400 text-sm mb-3">Other portals</p>
               <div className="flex gap-2 justify-center">
                 <Link href="/merchant-portal">
                   <Button size="sm" variant="outline" className="border-gray-600 text-gray-300 text-xs">🏪 Merchant Portal</Button>
@@ -422,7 +520,6 @@ export default function PoliceDashboard() {
           </div>
         )}
 
-        {/* Resolved Tab */}
         {tab === "resolved" && (
           <div>
             {resolvedIncidents.length === 0 ? (
