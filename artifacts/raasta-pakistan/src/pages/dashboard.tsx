@@ -30,8 +30,8 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 }
 
 export default function Dashboard() {
-  const { data: summary, isLoading } = useGetDashboardSummary();
-  const { data: activities } = useGetRecentActivity();
+  const { data: summary, isLoading } = useGetDashboardSummary({ query: { refetchInterval: 20_000 } });
+  const { data: activities } = useGetRecentActivity({ query: { refetchInterval: 20_000 } });
 
   const getActivityIcon = (type: string) => {
     switch (type) {

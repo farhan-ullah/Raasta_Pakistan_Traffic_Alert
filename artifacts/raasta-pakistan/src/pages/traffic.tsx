@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 
@@ -41,7 +41,17 @@ const getSeverityColor = (severity: string) => {
 
 export default function Traffic() {
   const [filter, setFilter] = useState<string>("all");
-  const { data: incidents = [], isLoading } = useListIncidents({ status: "active", type: filter !== "all" ? filter as any : undefined });
+  const { data: incidents = [], isLoading, dataUpdatedAt } = useListIncidents(
+    { status: "active", type: filter !== "all" ? filter as any : undefined },
+    { query: { refetchInterval: 15_000 } }
+  );
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  const lastUpdated = useRef<Date>(new Date());
+  useEffect(() => { lastUpdated.current = new Date(dataUpdatedAt); }, [dataUpdatedAt]);
+  useEffect(() => {
+    const id = setInterval(() => setSecondsAgo(Math.round((Date.now() - lastUpdated.current.getTime()) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <motion.div 
@@ -51,10 +61,16 @@ export default function Traffic() {
     >
       <div className="bg-white border-b border-border sticky top-0 z-10">
         <div className="p-4">
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-3">
-            <ShieldAlert className="h-6 w-6 text-primary" />
-            Live Traffic Updates
-          </h1>
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <ShieldAlert className="h-6 w-6 text-primary" />
+              Live Traffic Updates
+            </h1>
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+              {secondsAgo < 5 ? "Just updated" : `${secondsAgo}s ago`}
+            </div>
+          </div>
           
           <Select value={filter} onValueChange={setFilter}>
             <SelectTrigger className="w-full bg-gray-50">

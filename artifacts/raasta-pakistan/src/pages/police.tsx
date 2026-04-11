@@ -43,7 +43,7 @@ export default function PoliceDashboard() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: incidents, isLoading } = useListIncidents({ status: "all" });
+  const { data: incidents, isLoading } = useListIncidents({ status: "all" }, { query: { refetchInterval: 10_000 } });
   const createMutation = useCreateIncident();
   const updateMutation = useUpdateIncident();
 
