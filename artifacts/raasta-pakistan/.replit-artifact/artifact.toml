@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Raasta Pakistan - Live Traffic & Offers"
+version = "1.0.0"
+id = "artifacts/raasta-pakistan"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23687
+
+[services.development]
+run = "pnpm --filter @workspace/raasta-pakistan run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/raasta-pakistan", "run", "build" ]
+publicDir = "artifacts/raasta-pakistan/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23687"
+BASE_PATH = "/"

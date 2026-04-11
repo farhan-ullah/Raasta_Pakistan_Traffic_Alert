@@ -1,22 +1,31 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Raasta Pakistan - Live Traffic & Offers Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: incidents
+    description: Traffic incidents, blockages, and closures
+  - name: offers
+    description: Merchant offers and promotions
+  - name: merchants
+    description: Merchant management
+  - name: dashboard
+    description: Dashboard summary and analytics
+  - name: routes
+    description: Route suggestions
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +33,454 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /incidents:
+    get:
+      operationId: listIncidents
+      tags: [incidents]
+      summary: List all active traffic incidents
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, resolved, all]
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [blockage, construction, vip_movement, accident, congestion, all]
+        - name: city
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Incident"
+    post:
+      operationId: createIncident
+      tags: [incidents]
+      summary: Create a new traffic incident (police only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIncidentBody"
+      responses:
+        "201":
+          description: Incident created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+
+  /incidents/{id}:
+    get:
+      operationId: getIncident
+      tags: [incidents]
+      summary: Get a specific incident
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Incident details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+    patch:
+      operationId: updateIncident
+      tags: [incidents]
+      summary: Update an incident (e.g., resolve it)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIncidentBody"
+      responses:
+        "200":
+          description: Updated incident
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+
+  /incidents/summary:
+    get:
+      operationId: getIncidentSummary
+      tags: [incidents]
+      summary: Get dashboard summary of incidents by type and status
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentSummary"
+
+  /incidents/active-map:
+    get:
+      operationId: getActiveMapIncidents
+      tags: [incidents]
+      summary: Get all active incidents formatted for map display
+      responses:
+        "200":
+          description: Active incidents for map
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MapIncident"
+
+  /offers:
+    get:
+      operationId: listOffers
+      tags: [offers]
+      summary: List active offers, optionally near a location
+      parameters:
+        - name: lat
+          in: query
+          schema:
+            type: number
+        - name: lng
+          in: query
+          schema:
+            type: number
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: merchantId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+    post:
+      operationId: createOffer
+      tags: [offers]
+      summary: Create a new merchant offer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOfferBody"
+      responses:
+        "201":
+          description: Offer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+
+  /offers/{id}:
+    get:
+      operationId: getOffer
+      tags: [offers]
+      summary: Get a specific offer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Offer details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+    patch:
+      operationId: updateOffer
+      tags: [offers]
+      summary: Update an offer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOfferBody"
+      responses:
+        "200":
+          description: Updated offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+    delete:
+      operationId: deleteOffer
+      tags: [offers]
+      summary: Delete an offer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /offers/{id}/redeem:
+    post:
+      operationId: redeemOffer
+      tags: [offers]
+      summary: Redeem an offer (generate QR code token)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemOfferBody"
+      responses:
+        "200":
+          description: Redemption token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedemptionToken"
+
+  /offers/featured:
+    get:
+      operationId: getFeaturedOffers
+      tags: [offers]
+      summary: Get featured/trending offers for home screen
+      responses:
+        "200":
+          description: Featured offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+
+  /offers/stats:
+    get:
+      operationId: getOfferStats
+      tags: [offers]
+      summary: Get offer redemption statistics
+      responses:
+        "200":
+          description: Offer statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferStats"
+
+  /merchants:
+    get:
+      operationId: listMerchants
+      tags: [merchants]
+      summary: List all merchants
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: city
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of merchants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Merchant"
+    post:
+      operationId: createMerchant
+      tags: [merchants]
+      summary: Register a new merchant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMerchantBody"
+      responses:
+        "201":
+          description: Merchant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Merchant"
+
+  /merchants/{id}:
+    get:
+      operationId: getMerchant
+      tags: [merchants]
+      summary: Get a specific merchant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Merchant details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Merchant"
+    patch:
+      operationId: updateMerchant
+      tags: [merchants]
+      summary: Update merchant info
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMerchantBody"
+      responses:
+        "200":
+          description: Updated merchant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Merchant"
+
+  /merchants/{id}/offers:
+    get:
+      operationId: getMerchantOffers
+      tags: [merchants]
+      summary: Get all offers for a merchant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Merchant's offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+
+  /merchants/by-category:
+    get:
+      operationId: getMerchantsByCategory
+      tags: [merchants]
+      summary: Get merchant counts grouped by category
+      responses:
+        "200":
+          description: Category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryCount"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get overall platform summary for police command dashboard
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent activity feed for the command center
+      responses:
+        "200":
+          description: Recent activity items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /routes/alternate:
+    get:
+      operationId: getAlternateRoutes
+      tags: [routes]
+      summary: Get suggested alternate routes around blockages
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Alternate routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AlternateRoute"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +488,549 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    Incident:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [blockage, construction, vip_movement, accident, congestion]
+        title:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        area:
+          type: string
+        city:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        status:
+          type: string
+          enum: [active, resolved]
+        reportedBy:
+          type: string
+        officerName:
+          type: string
+        affectedRoads:
+          type: array
+          items:
+            type: string
+        alternateRoutes:
+          type: array
+          items:
+            type: string
+        estimatedDuration:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - title
+        - location
+        - lat
+        - lng
+        - severity
+        - status
+        - createdAt
+
+    CreateIncidentBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [blockage, construction, vip_movement, accident, congestion]
+        title:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        area:
+          type: string
+        city:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        reportedBy:
+          type: string
+        officerName:
+          type: string
+        affectedRoads:
+          type: array
+          items:
+            type: string
+        alternateRoutes:
+          type: array
+          items:
+            type: string
+        estimatedDuration:
+          type: string
+      required: [type, title, location, lat, lng, severity]
+
+    UpdateIncidentBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, resolved]
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        alternateRoutes:
+          type: array
+          items:
+            type: string
+        estimatedDuration:
+          type: string
+        endTime:
+          type: string
+          format: date-time
+
+    MapIncident:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        severity:
+          type: string
+        status:
+          type: string
+        location:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, type, title, lat, lng, severity, status]
+
+    IncidentSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        active:
+          type: integer
+        resolved:
+          type: integer
+        byType:
+          type: object
+          additionalProperties:
+            type: integer
+        bySeverity:
+          type: object
+          additionalProperties:
+            type: integer
+        todayCount:
+          type: integer
+      required: [total, active, resolved]
+
+    Offer:
+      type: object
+      properties:
+        id:
+          type: string
+        merchantId:
+          type: string
+        merchantName:
+          type: string
+        merchantCategory:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        discountPercent:
+          type: number
+        discountAmount:
+          type: number
+        originalPrice:
+          type: number
+        offerPrice:
+          type: number
+        code:
+          type: string
+        imageUrl:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        address:
+          type: string
+        city:
+          type: string
+        radiusKm:
+          type: number
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        maxRedemptions:
+          type: integer
+        currentRedemptions:
+          type: integer
+        isActive:
+          type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - merchantId
+        - merchantName
+        - merchantCategory
+        - title
+        - description
+        - lat
+        - lng
+        - isActive
+        - createdAt
+
+    CreateOfferBody:
+      type: object
+      properties:
+        merchantId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        discountPercent:
+          type: number
+        discountAmount:
+          type: number
+        originalPrice:
+          type: number
+        offerPrice:
+          type: number
+        code:
+          type: string
+        imageUrl:
+          type: string
+        radiusKm:
+          type: number
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        maxRedemptions:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+      required: [merchantId, title, description]
+
+    UpdateOfferBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        discountPercent:
+          type: number
+        discountAmount:
+          type: number
+        isActive:
+          type: boolean
+        validUntil:
+          type: string
+          format: date-time
+        maxRedemptions:
+          type: integer
+
+    RedeemOfferBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        userName:
+          type: string
+      required: [userId]
+
+    RedemptionToken:
+      type: object
+      properties:
+        token:
+          type: string
+        offerId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        qrData:
+          type: string
+      required: [token, offerId, expiresAt, qrData]
+
+    OfferStats:
+      type: object
+      properties:
+        totalOffers:
+          type: integer
+        activeOffers:
+          type: integer
+        totalRedemptions:
+          type: integer
+        todayRedemptions:
+          type: integer
+        topCategories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryCount"
+        redemptionsByDay:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+      required: [totalOffers, activeOffers, totalRedemptions]
+
+    Merchant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [restaurant, cafe, pharmacy, shop, beauty, massage, takeaway, grocery, bakery, electronics, clothing, other]
+        description:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        area:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        logoUrl:
+          type: string
+        coverUrl:
+          type: string
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+        isVerified:
+          type: boolean
+        isOpen:
+          type: boolean
+        openHours:
+          type: string
+        activeOffersCount:
+          type: integer
+        totalRedemptions:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - category
+        - address
+        - lat
+        - lng
+        - createdAt
+
+    CreateMerchantBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [restaurant, cafe, pharmacy, shop, beauty, massage, takeaway, grocery, bakery, electronics, clothing, other]
+        description:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        area:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        logoUrl:
+          type: string
+        coverUrl:
+          type: string
+        openHours:
+          type: string
+      required: [name, category, address, lat, lng]
+
+    UpdateMerchantBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        logoUrl:
+          type: string
+        coverUrl:
+          type: string
+        isOpen:
+          type: boolean
+        openHours:
+          type: string
+
+    CategoryCount:
+      type: object
+      properties:
+        category:
+          type: string
+        count:
+          type: integer
+        label:
+          type: string
+      required: [category, count]
+
+    DashboardSummary:
+      type: object
+      properties:
+        activeIncidents:
+          type: integer
+        resolvedToday:
+          type: integer
+        totalMerchants:
+          type: integer
+        activeOffers:
+          type: integer
+        totalRedemptionsToday:
+          type: integer
+        criticalAlerts:
+          type: integer
+        affectedRoads:
+          type: integer
+        officersOnDuty:
+          type: integer
+        incidentsByType:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryCount"
+        hourlyIncidents:
+          type: array
+          items:
+            type: object
+            properties:
+              hour:
+                type: string
+              count:
+                type: integer
+      required:
+        - activeIncidents
+        - resolvedToday
+        - totalMerchants
+        - activeOffers
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [incident_created, incident_resolved, offer_created, offer_redeemed, merchant_registered]
+        title:
+          type: string
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        severity:
+          type: string
+        location:
+          type: string
+      required: [id, type, title, timestamp]
+
+    AlternateRoute:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        estimatedTime:
+          type: string
+        distance:
+          type: string
+        via:
+          type: array
+          items:
+            type: string
+        congestionLevel:
+          type: string
+          enum: [low, medium, high]
+      required: [id, name, description, estimatedTime, distance]
