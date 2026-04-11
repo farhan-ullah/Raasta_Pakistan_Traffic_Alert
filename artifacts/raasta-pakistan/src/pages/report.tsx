@@ -39,6 +39,7 @@ function PhotoThumb({ src, onRemove }: { src: string; onRemove: () => void }) {
 export default function CitizenReport() {
   const [type, setType] = useState("blockage");
   const [area, setArea] = useState("");
+  const [customArea, setCustomArea] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [phone, setPhone] = useState("");
@@ -74,12 +75,13 @@ export default function CitizenReport() {
     setSubmitting(true);
     try {
       const mediaUrls = [...photos, ...(videoUrl ? [videoUrl] : [])];
+      const finalArea = customArea.trim() || area;
       const payload = {
         type,
-        title: `${INCIDENT_TYPES.find(t => t.value === type)?.label} — ${area || "Islamabad"}`,
+        title: `${INCIDENT_TYPES.find(t => t.value === type)?.label} — ${finalArea || "Islamabad"}`,
         description,
-        location: area ? `${area}, ${location}` : location,
-        area,
+        location: finalArea ? `${finalArea}, ${location}` : location,
+        area: finalArea,
         city: "Islamabad",
         lat: 33.6844 + (Math.random() - 0.5) * 0.05,
         lng: 73.0479 + (Math.random() - 0.5) * 0.05,
@@ -118,7 +120,7 @@ export default function CitizenReport() {
         <p className="text-sm text-gray-400 text-center mb-8">Police will verify and update your report shortly.</p>
         <div className="flex gap-3">
           <Button
-            onClick={() => { setSubmitted(false); setType("blockage"); setArea(""); setLocation(""); setDescription(""); setPhotos([]); setVideoUrl(""); setPhone(""); }}
+            onClick={() => { setSubmitted(false); setType("blockage"); setArea(""); setCustomArea(""); setLocation(""); setDescription(""); setPhotos([]); setVideoUrl(""); setPhone(""); }}
             variant="outline"
             className="border-[#01411C] text-[#01411C]"
           >
@@ -229,16 +231,29 @@ export default function CitizenReport() {
             <div className="relative">
               <select
                 value={area}
-                onChange={e => setArea(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm appearance-none focus:outline-none focus:border-[#01411C]"
+                onChange={e => { setArea(e.target.value); setCustomArea(""); }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm appearance-none focus:outline-none focus:border-[#01411C] ${customArea ? "border-gray-100 text-gray-300" : "border-gray-200"}`}
               >
-                <option value="">Select Area / Sector</option>
+                <option value="">Select from list...</option>
                 {ISLAMABAD_AREAS.map(a => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs text-gray-400 font-medium shrink-0">or type manually</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            <input
+              value={customArea}
+              onChange={e => { setCustomArea(e.target.value); if (e.target.value) setArea(""); }}
+              placeholder="e.g. New Islamabad, Koral, Tarlai, Humak..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#01411C] placeholder:text-gray-400"
+            />
             <input
               value={location}
               onChange={e => setLocation(e.target.value)}
