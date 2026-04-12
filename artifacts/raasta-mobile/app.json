@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "Raasta Pakistan",
+    "slug": "raasta-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "raasta-mobile",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#01411C"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.raasta.pakistan",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Raasta needs camera access to let you photograph incidents for reporting.",
+        "NSPhotoLibraryUsageDescription": "Raasta needs photo library access to attach images to incident reports.",
+        "NSLocationWhenInUseUsageDescription": "Raasta uses your location to show your position on the traffic map."
+      }
+    },
+    "android": {
+      "package": "com.raasta.pakistan",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Raasta needs photo library access to attach images to incident reports.",
+          "cameraPermission": "Raasta needs camera access to let you photograph incidents."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Raasta uses your location to show your position on the traffic map."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

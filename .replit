@@ -28,6 +28,10 @@ localPort = 8081
 externalPort = 80
 
 [[ports]]
+localPort = 20737
+externalPort = 3002
+
+[[ports]]
 localPort = 23687
 externalPort = 3000
 
@@ -38,3 +42,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 POLICE_PIN = "raasta2024"
+EXPO_PUBLIC_DOMAIN = "68a94ef9-573b-420e-8f53-2a7f542163fe-00-1do1ycu046yju.riker.replit.dev"
