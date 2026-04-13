@@ -15,12 +15,15 @@ export default function Home() {
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [tickerIdx, setTickerIdx] = useState(0);
 
-  const { data: incidents = [], dataUpdatedAt } = useGetActiveMapIncidents({
+  const { data: incidentsRaw, dataUpdatedAt } = useGetActiveMapIncidents({
     query: { refetchInterval: REFETCH_MS },
   });
-  const { data: offers = [] } = useListOffers({
+  const { data: offersRaw } = useListOffers({
     query: { refetchInterval: REFETCH_MS },
   });
+
+  const incidents = Array.isArray(incidentsRaw) ? incidentsRaw : [];
+  const offers = Array.isArray(offersRaw) ? offersRaw : [];
 
   useEffect(() => {
     if (dataUpdatedAt) setLastUpdated(new Date(dataUpdatedAt));
@@ -43,10 +46,10 @@ export default function Home() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="flex flex-col h-full bg-background"
+      className="flex flex-col h-full min-h-0 bg-background"
     >
       {/* Header */}
-      <div className="bg-[#01411C] text-white px-4 pt-4 pb-3 shadow-md z-10">
+      <div className="bg-[#01411C] text-white px-4 pt-4 pb-3 shadow-md z-10 shrink-0">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-black tracking-tight">Raasta Pakistan</h1>
           <div className="flex items-center gap-2">
@@ -96,12 +99,17 @@ export default function Home() {
         )}
       </div>
 
-      {/* Live Map */}
-      <div className="flex-1 relative min-h-[42vh]">
-        <LiveMap incidents={incidents} offers={offers} lastUpdated={lastUpdated} />
+      {/* Live map fills all space between header and featured offers */}
+      <div className="relative w-full flex-1 min-h-0 flex flex-col">
+        <LiveMap
+          incidents={incidents}
+          offers={offers}
+          lastUpdated={lastUpdated}
+          className="flex-1 w-full min-h-0"
+        />
 
         {/* Floating quick nav */}
-        <div className="absolute bottom-4 left-0 right-0 px-4 z-[500]">
+        <div className="absolute bottom-3 left-0 right-0 px-3 z-[500] pointer-events-none [&_a]:pointer-events-auto">
           <div className="bg-white/95 backdrop-blur-md p-2 rounded-2xl shadow-xl flex justify-around items-center border border-white/30">
             <Link href="/traffic" className="flex flex-col items-center p-2 text-[#01411C] hover:bg-[#01411C]/10 rounded-xl transition-colors">
               <ShieldAlert className="h-6 w-6 mb-0.5" />
@@ -122,8 +130,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Featured Offers */}
-      <div className="bg-gray-50 pt-4 pb-6">
+      {/* Featured Offers — fixed strip so the map can use flex-1 above */}
+      <div className="bg-gray-50 pt-4 pb-6 shrink-0">
         <div className="px-4 flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
             <Tag className="h-4 w-4 text-[#01411C]" />

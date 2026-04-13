@@ -3,7 +3,10 @@ import { createPoliceToken, verifyPoliceToken } from "../middleware/policeAuth";
 
 const router = Router();
 
-const POLICE_PIN = process.env["POLICE_PIN"];
+/** Prefer env; in development only, default matches Replit / docs so local API works without extra env. */
+const POLICE_PIN =
+  process.env["POLICE_PIN"] ??
+  (process.env["NODE_ENV"] === "development" ? "raasta2024" : undefined);
 
 router.post("/auth/police/login", (req, res) => {
   if (!POLICE_PIN) {

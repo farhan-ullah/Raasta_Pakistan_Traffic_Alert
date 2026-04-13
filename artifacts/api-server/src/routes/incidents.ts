@@ -9,10 +9,11 @@ import {
   ListIncidentsQueryParams,
 } from "@workspace/api-zod";
 import { requirePoliceAuth } from "../middleware/policeAuth";
+import { catchAsync } from "../lib/dbError";
 
 const router: IRouter = Router();
 
-router.get("/incidents/summary", async (_req, res): Promise<void> => {
+router.get("/incidents/summary", catchAsync(async (_req, res): Promise<void> => {
   const allIncidents = await db.select().from(incidentsTable);
   const active = allIncidents.filter(i => i.status === "active");
   const resolved = allIncidents.filter(i => i.status === "resolved");
@@ -36,9 +37,9 @@ router.get("/incidents/summary", async (_req, res): Promise<void> => {
     bySeverity,
     todayCount,
   });
-});
+}));
 
-router.get("/incidents/active-map", async (_req, res): Promise<void> => {
+router.get("/incidents/active-map", catchAsync(async (_req, res): Promise<void> => {
   const incidents = await db
     .select({
       id: incidentsTable.id,
@@ -55,9 +56,9 @@ router.get("/incidents/active-map", async (_req, res): Promise<void> => {
     .where(eq(incidentsTable.status, "active"))
     .orderBy(desc(incidentsTable.createdAt));
   res.json(incidents.map(i => ({ ...i, id: String(i.id) })));
-});
+}));
 
-router.get("/incidents", async (req, res): Promise<void> => {
+router.get("/incidents", catchAsync(async (req, res): Promise<void> => {
   const params = ListIncidentsQueryParams.safeParse(req.query);
   let query = db.select().from(incidentsTable).$dynamic();
 
@@ -83,16 +84,16 @@ router.get("/incidents", async (req, res): Promise<void> => {
     ...i,
     id: String(i.id),
   })));
-});
+}));
 
-router.post("/incidents", async (req, res, next): Promise<void> => {
+router.post("/incidents", (req, res, next): void => {
   const body = req.body as { reportedBy?: string };
   if (body.reportedBy === "police") {
     requirePoliceAuth(req, res, next);
     return;
   }
   next();
-}, async (req, res): Promise<void> => {
+}, catchAsync(async (req, res): Promise<void> => {
   const parsed = CreateIncidentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -123,9 +124,9 @@ router.post("/incidents", async (req, res, next): Promise<void> => {
     .returning();
 
   res.status(201).json({ ...incident, id: String(incident.id) });
-});
+}));
 
-router.get("/incidents/:id", async (req, res): Promise<void> => {
+router.get("/incidents/:id", catchAsync(async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(rawId, 10);
   if (isNaN(id)) {
@@ -144,9 +145,9 @@ router.get("/incidents/:id", async (req, res): Promise<void> => {
   }
 
   res.json({ ...incident, id: String(incident.id) });
-});
+}));
 
-router.patch("/incidents/:id", requirePoliceAuth, async (req, res): Promise<void> => {
+router.patch("/incidents/:id", requirePoliceAuth, catchAsync(async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(rawId, 10);
   if (isNaN(id)) {
@@ -180,6 +181,6 @@ router.patch("/incidents/:id", requirePoliceAuth, async (req, res): Promise<void
   }
 
   res.json({ ...incident, id: String(incident.id) });
-});
+}));
 
 export default router;

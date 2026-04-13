@@ -21,7 +21,9 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
 
-const BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+import { getApiOrigin } from "@/constants/apiOrigin";
+
+const BASE = getApiOrigin();
 
 type Tab = "citizen" | "post" | "resolved";
 

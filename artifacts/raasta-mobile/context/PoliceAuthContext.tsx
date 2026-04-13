@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { getApiOrigin } from "@/constants/apiOrigin";
+
 const TOKEN_KEY = "raasta_police_token";
 
 interface PoliceAuthContextType {
@@ -21,8 +23,7 @@ export function PoliceAuthProvider({ children }: { children: React.ReactNode }) 
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  const apiBase = `https://${domain}`;
+  const apiBase = getApiOrigin();
 
   useEffect(() => {
     AsyncStorage.getItem(TOKEN_KEY)
@@ -42,7 +43,7 @@ export function PoliceAuthProvider({ children }: { children: React.ReactNode }) 
         }
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [apiBase]);
 
   const login = async (pin: string): Promise<{ success: boolean; error?: string }> => {
     try {

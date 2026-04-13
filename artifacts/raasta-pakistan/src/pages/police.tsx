@@ -66,7 +66,22 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
         toast({ title: "Access granted", description: "Welcome, Officer." });
         onLogin(token);
       } else {
-        setError("Invalid access code. Contact your supervisor.");
+        let msg = "Invalid access code. Contact your supervisor.";
+        try {
+          const body = await res.json() as { error?: string };
+          if (body.error === "Police auth not configured") {
+            msg = "Police login is not configured on the server (set POLICE_PIN).";
+          } else if (res.status === 401) {
+            msg = "Invalid access code. Contact your supervisor.";
+          } else if (body.error) {
+            msg = body.error;
+          }
+        } catch {
+          if (res.status === 404) {
+            msg = "API not reachable. Start the API server and use Vite dev (proxies /api), or deploy API and web together.";
+          }
+        }
+        setError(msg);
       }
     } catch {
       setError("Connection error. Try again.");
@@ -178,10 +193,11 @@ export default function PoliceDashboard() {
     toast({ title: "Logged out", description: "Police session ended." });
   };
 
-  const { data: incidents = [], isLoading } = useListIncidents(
+  const { data: incidentsRaw, isLoading } = useListIncidents(
     { status: "all" },
     { query: { refetchInterval: token ? 10_000 : false } }
   );
+  const incidents = Array.isArray(incidentsRaw) ? incidentsRaw : [];
 
   const activeIncidents = incidents.filter(i => i.status === "active");
   const resolvedIncidents = incidents.filter(i => i.status === "resolved");
@@ -191,7 +207,7 @@ export default function PoliceDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.location || !token) return;
+    if (!form.title.trim() || !form.location.trim() || !token) return;
     const finalArea = form.customArea.trim() || form.area;
     setSubmitting(true);
     try {
@@ -500,8 +516,14 @@ export default function PoliceDashboard() {
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
                 <input value={form.estimatedDuration} onChange={e => setForm(f => ({ ...f, estimatedDuration: e.target.value }))}
                   placeholder="Estimated duration (e.g. 2 hours)" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
-                <Button type="submit" disabled={submitting || !form.title || !form.location}
-                  className="w-full bg-[#01411C] hover:bg-[#025a28] font-bold py-3 rounded-xl text-sm">
+                {(!form.title.trim() || !form.location.trim()) && !submitting && (
+                  <p className="text-xs text-amber-300/95 text-center leading-snug px-1">
+                    Add <span className="font-semibold">incident title</span> (above) and{" "}
+                    <span className="font-semibold">street / landmark</span> — those two are required to post.
+                  </p>
+                )}
+                <Button type="submit" disabled={submitting || !form.title.trim() || !form.location.trim()}
+                  className="w-full bg-[#01411C] hover:bg-[#025a28] font-bold py-3 rounded-xl text-sm disabled:opacity-50">
                   {submitting ? "Posting..." : "🚔 Post Live Alert"}
                 </Button>
               </form>

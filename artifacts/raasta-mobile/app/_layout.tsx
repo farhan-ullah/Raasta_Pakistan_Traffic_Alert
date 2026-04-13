@@ -17,8 +17,9 @@ import { setBaseUrl } from "@workspace/api-client-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PoliceAuthProvider } from "@/context/PoliceAuthContext";
 import { AlertProvider } from "@/context/AlertContext";
+import { getApiOrigin } from "@/constants/apiOrigin";
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+setBaseUrl(getApiOrigin());
 
 SplashScreen.preventAutoHideAsync();
 

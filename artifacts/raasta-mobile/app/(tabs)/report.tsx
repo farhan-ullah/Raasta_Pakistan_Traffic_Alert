@@ -18,7 +18,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 
-const BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+import { getApiOrigin } from "@/constants/apiOrigin";
+
+const BASE = getApiOrigin();
 
 const TYPES = [
   { value: "blockage", label: "Road Blocked", icon: "slash" as const },

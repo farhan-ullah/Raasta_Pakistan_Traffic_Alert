@@ -26,6 +26,9 @@ if (!basePath) {
   );
 }
 
+const apiProxyTarget =
+  process.env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:3000";
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -62,6 +65,13 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    /** Forward /api to the Express app so the Vite dev server and police login work locally. */
+    proxy: {
+      "/api": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

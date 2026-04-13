@@ -1,0 +1,23 @@
+# Local PostgreSQL for development. From repo root:
+#   docker compose up -d
+#   export DATABASE_URL="postgresql://raasta:raasta@localhost:5432/raasta"
+#   pnpm run db:push
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: raasta
+      POSTGRES_PASSWORD: raasta
+      POSTGRES_DB: raasta
+    volumes:
+      - raasta_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raasta -d raasta"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  raasta_pgdata:

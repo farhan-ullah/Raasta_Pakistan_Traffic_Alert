@@ -33,11 +33,12 @@ export default function Merchants() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [search, setSearch] = useState("");
 
-  const { data: merchants, isLoading } = useListMerchants(
+  const { data: merchantsRaw, isLoading } = useListMerchants(
     selectedCategory ? { category: selectedCategory } : undefined
   );
+  const merchants = Array.isArray(merchantsRaw) ? merchantsRaw : [];
 
-  const filtered = merchants?.filter(m =>
+  const filtered = merchants.filter(m =>
     !search ||
     m.name.toLowerCase().includes(search.toLowerCase()) ||
     m.area?.toLowerCase().includes(search.toLowerCase())

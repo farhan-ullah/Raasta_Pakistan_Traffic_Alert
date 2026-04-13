@@ -21,11 +21,12 @@ export default function Offers() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [search, setSearch] = useState("");
 
-  const { data: offers, isLoading } = useListOffers(
+  const { data: offersRaw, isLoading } = useListOffers(
     selectedCategory ? { category: selectedCategory } : undefined
   );
+  const offers = Array.isArray(offersRaw) ? offersRaw : [];
 
-  const filtered = offers?.filter(o =>
+  const filtered = offers.filter(o =>
     !search || o.title.toLowerCase().includes(search.toLowerCase()) || o.merchantName?.toLowerCase().includes(search.toLowerCase())
   );
 

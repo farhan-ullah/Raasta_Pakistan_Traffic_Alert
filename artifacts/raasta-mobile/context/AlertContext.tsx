@@ -12,7 +12,9 @@ import * as Speech from "expo-speech";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+import { getApiOrigin } from "@/constants/apiOrigin";
+
+const BASE = getApiOrigin();
 
 // Alert radius in meters
 const ALERT_RADIUS_CRITICAL = 4000;   // 4km

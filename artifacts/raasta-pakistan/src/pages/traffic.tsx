@@ -41,10 +41,11 @@ const getSeverityColor = (severity: string) => {
 
 export default function Traffic() {
   const [filter, setFilter] = useState<string>("all");
-  const { data: incidents = [], isLoading, dataUpdatedAt } = useListIncidents(
+  const { data: incidentsRaw, isLoading, dataUpdatedAt } = useListIncidents(
     { status: "active", type: filter !== "all" ? filter as any : undefined },
     { query: { refetchInterval: 15_000 } }
   );
+  const incidents = Array.isArray(incidentsRaw) ? incidentsRaw : [];
   const [secondsAgo, setSecondsAgo] = useState(0);
   const lastUpdated = useRef<Date>(new Date());
   useEffect(() => { lastUpdated.current = new Date(dataUpdatedAt); }, [dataUpdatedAt]);
