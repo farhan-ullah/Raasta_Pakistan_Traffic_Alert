@@ -9,31 +9,35 @@ import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { AlertBanner } from "@/components/AlertBanner";
 
 function NativeTabLayout() {
   return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "map", selected: "map.fill" }} />
-        <Label>Map</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="traffic">
-        <Icon sf={{ default: "exclamationmark.triangle", selected: "exclamationmark.triangle.fill" }} />
-        <Label>Traffic</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="report">
-        <Icon sf={{ default: "camera.circle", selected: "camera.circle.fill" }} />
-        <Label>Report</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="police">
-        <Icon sf={{ default: "shield", selected: "shield.fill" }} />
-        <Label>Police</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="dashboard">
-        <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
-        <Label>Dash</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <View style={{ flex: 1 }}>
+      <NativeTabs>
+        <NativeTabs.Trigger name="index">
+          <Icon sf={{ default: "map", selected: "map.fill" }} />
+          <Label>Map</Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="traffic">
+          <Icon sf={{ default: "exclamationmark.triangle", selected: "exclamationmark.triangle.fill" }} />
+          <Label>Traffic</Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="report">
+          <Icon sf={{ default: "camera.circle", selected: "camera.circle.fill" }} />
+          <Label>Report</Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="police">
+          <Icon sf={{ default: "shield", selected: "shield.fill" }} />
+          <Label>Police</Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="dashboard">
+          <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
+          <Label>Dash</Label>
+        </NativeTabs.Trigger>
+      </NativeTabs>
+      <AlertBanner />
+    </View>
   );
 }
 
@@ -46,6 +50,7 @@ function ClassicTabLayout() {
   const isWeb = Platform.OS === "web";
 
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -145,6 +150,8 @@ function ClassicTabLayout() {
         }}
       />
     </Tabs>
+    <AlertBanner />
+    </View>
   );
 }
 

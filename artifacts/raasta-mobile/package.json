@@ -56,6 +56,9 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "expo-notifications": "^0.32.16",
+    "expo-speech": "^14.0.8",
+    "expo-task-manager": "^14.0.9",
     "react-native-maps": "1.18.0"
   }
 }

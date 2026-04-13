@@ -3,6 +3,11 @@ const path = require("path");
 
 const config = getDefaultConfig(__dirname);
 
+// Prevent Metro from watching pnpm temp directories (avoids ENOENT crash)
+config.resolver.blockList = [
+  /_tmp_\d+/,
+];
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === "web" && moduleName === "react-native-maps") {
     return {
