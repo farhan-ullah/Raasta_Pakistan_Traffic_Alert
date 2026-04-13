@@ -7,8 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import type { GeocodePlace } from "@workspace/api-client-react";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
-
-const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+import { getWebApiOrigin } from "@/constants/apiOrigin";
 
 const INCIDENT_TYPES = [
   { value: "blockage", label: "Road Blocked", emoji: "🚫", color: "bg-red-100 text-red-700 border-red-300" },
@@ -89,7 +88,7 @@ export default function CitizenReport() {
         isVerifiedByPolice: false,
       };
 
-      const res = await fetch(`${BASE_URL}/api/incidents`, {
+      const res = await fetch(`${getWebApiOrigin()}/api/incidents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -1,9 +1,12 @@
+/** Default deployed API (no trailing slash). Overridden by env in `.env.development` / `.env.production`. */
+const DEFAULT_API_ORIGIN = "http://5.189.173.244:8090";
+
 /**
  * API origin for the Raasta app.
  *
- * - Local: set `EXPO_PUBLIC_API_ORIGIN` (e.g. `http://localhost:5000`, or
- *   `http://10.0.2.2:5000` for Android emulator → host machine).
- * - Hosted (Replit/production): set `EXPO_PUBLIC_DOMAIN` (hostname only); requests use `https`.
+ * - **Env:** `EXPO_PUBLIC_API_ORIGIN` (full URL) or `EXPO_PUBLIC_DOMAIN` (hostname → `https://…`).
+ * - **Files:** `.env.development` (local `expo start`) and `.env.production` (release / EAS) — see repo.
+ * - If unset, falls back to {@link DEFAULT_API_ORIGIN}.
  */
 export function getApiOrigin(): string {
   const explicit = process.env.EXPO_PUBLIC_API_ORIGIN?.trim();
@@ -11,10 +14,8 @@ export function getApiOrigin(): string {
     return explicit.replace(/\/+$/, "");
   }
   const domain = process.env.EXPO_PUBLIC_DOMAIN?.trim();
-  if (!domain) {
-    throw new Error(
-      "Set EXPO_PUBLIC_API_ORIGIN (local dev) or EXPO_PUBLIC_DOMAIN (hosted build) for API calls.",
-    );
+  if (domain) {
+    return `https://${domain}`;
   }
-  return `https://${domain}`;
+  return DEFAULT_API_ORIGIN;
 }

@@ -1,0 +1,38 @@
+import { StyleSheet } from "react-native";
+
+/** Shared overlay chrome for native map screens (Android OSM + iOS Google). */
+export const nativeMapChromeStyles = StyleSheet.create({
+  container: { flex: 1 },
+  map: { flex: 1 },
+  header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: "#01411Cee",
+  },
+  headerContent: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerTitle: { fontSize: 22, fontWeight: "900" as const, color: "#fff", letterSpacing: -0.5 },
+  headerSub: { fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 1 },
+  liveTag: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#ef444488", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#fff" },
+  liveText: { color: "#fff", fontSize: 11, fontWeight: "800" as const },
+  markerOuter: { width: 22, height: 22, borderRadius: 11, borderWidth: 2.5, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" },
+  markerInner: { width: 10, height: 10, borderRadius: 5 },
+  callout: { borderRadius: 12, padding: 12, borderWidth: 1, minWidth: 180, maxWidth: 240, gap: 4 },
+  calloutBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, alignSelf: "flex-start" },
+  calloutBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" as const },
+  calloutTitle: { fontSize: 13, fontWeight: "700" as const, lineHeight: 18 },
+  calloutLocation: { fontSize: 11 },
+  calloutTime: { fontSize: 10 },
+  summary: { position: "absolute", left: 16, right: 16, borderRadius: 16, borderWidth: 1, padding: 14 },
+  summaryInner: { flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
+  statBlock: { alignItems: "center", gap: 2 },
+  statNum2: { fontSize: 24, fontWeight: "800" as const },
+  statLabel2: { fontSize: 10, fontWeight: "600" as const },
+  divider: { width: 1, height: 32 },
+  refreshBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  myLocBtn: { position: "absolute", right: 16, borderRadius: 12, borderWidth: 1, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+});

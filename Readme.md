@@ -166,6 +166,8 @@ App URL is typically **http://localhost:5173/** (with `dev:local`).
 
 Set **`EXPO_PUBLIC_API_ORIGIN`** for local API (e.g. `http://127.0.0.1:3000`). On **Android emulator** targeting the host machine, use **`http://10.0.2.2:3000`**. For hosted HTTPS APIs, use **`EXPO_PUBLIC_DOMAIN`** (hostname only) instead.
 
+If **`pnpm run`** fails with **Corepack** (`Cannot find matching keyid`), run the same scripts from **`artifacts/raasta-mobile`** using **`npm run`** (ships with Node), or run **`corepack prepare pnpm@9.15.0 --activate`**, or **`corepack disable`** and install **`pnpm`** globally with **`npm i -g pnpm@9.15.0`**.
+
 | Command | Description |
 |--------|-------------|
 | `pnpm --filter @workspace/raasta-mobile run start` | `expo start` (interactive Metro; choose platform). |
@@ -175,6 +177,7 @@ Set **`EXPO_PUBLIC_API_ORIGIN`** for local API (e.g. `http://127.0.0.1:3000`). O
 | `pnpm --filter @workspace/raasta-mobile run dev:local` | `EXPO_PUBLIC_API_ORIGIN=http://127.0.0.1:3000` + `expo start` (simulator / same machine only). |
 | `pnpm --filter @workspace/raasta-mobile run dev:device` | Sets **`EXPO_PUBLIC_API_ORIGIN`** to your Mac’s LAN IP **:3000** and runs **`expo start --lan`** so a **physical phone** on Wi‑Fi can reach the API. Start the API on **:3000** first. |
 | `pnpm --filter @workspace/raasta-mobile run android:native` | Native Android build: runs **`pnpm install` from the repo root**, then **`expo run:android`**. Requires **Android Studio / SDK** and typically **`export ANDROID_HOME=$HOME/Library/Android/sdk`** on macOS (the **`scripts/run-android.sh`** helper sets this if that folder exists). Set **`EXPO_PUBLIC_API_ORIGIN`** for a physical device (e.g. `http://192.168.x.x:3000`). Prefer this over bare **`npx expo run:android`** from the package folder alone, which often fails on the inner **`pnpm install`**. |
+| `cd artifacts/raasta-mobile && npm run android:release` | **Release** APK + **`.env.production`** API URLs, **`--no-bundler`** (avoids Metro/localhost on a real device). Use **`npm run`** here if **`pnpm run android:release`** hits a Corepack error. |
 | `pnpm --filter @workspace/raasta-mobile run dev` | Replit-oriented env (`REPLIT_*`, `PORT`, etc.); use on Replit. |
 | `pnpm --filter @workspace/raasta-mobile run build` | `node scripts/build.js` (deployment build). |
 | `pnpm --filter @workspace/raasta-mobile run serve` | `node server/serve.js` (static/serve helper). |

@@ -15,14 +15,42 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ? webOriginRaw.endsWith("/")
       ? webOriginRaw
       : `${webOriginRaw}/`
-    : "https://your-web-app.example.com/";
+    : "http://5.189.173.244:8090/";
 
-  const plugins = (config.plugins ?? []).map((entry) => {
+  /** Used by iOS MapKit/Google Maps (react-native-maps). Android home tab uses MapLibre + OSM (no key). */
+  const googleMapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY?.trim() ?? "";
+
+  const mappedPlugins = (config.plugins ?? []).map((entry) => {
     if (Array.isArray(entry) && entry[0] === "expo-router") {
       return ["expo-router", { origin: webOrigin }] as [string, Record<string, string>];
     }
     return entry;
   });
+  const plugins = [
+    ...mappedPlugins,
+    "@maplibre/maplibre-react-native",
+    /** Plain HTTP to EXPO_PUBLIC_API_ORIGIN: manifest + network_security_config.xml */
+    "./plugins/withAndroidHttpCleartext.cjs",
+  ];
 
-  return { ...config, plugins };
+  const next = { ...config, plugins } as ExpoConfig;
+
+  if (googleMapsKey) {
+    next.android = {
+      ...config.android,
+      config: {
+        ...config.android?.config,
+        googleMaps: { apiKey: googleMapsKey },
+      },
+    };
+    next.ios = {
+      ...config.ios,
+      config: {
+        ...config.ios?.config,
+        googleMapsApiKey: googleMapsKey,
+      },
+    };
+  }
+
+  return next;
 };

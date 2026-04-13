@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+import { getWebApiOrigin } from "@/constants/apiOrigin";
 const TOKEN_KEY = "raasta_police_token";
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -51,7 +50,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${BASE}/api/auth/police/login`, {
+      const res = await fetch(`${getWebApiOrigin()}/api/auth/police/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
@@ -171,7 +170,7 @@ export default function PoliceDashboard() {
   useEffect(() => {
     const saved = localStorage.getItem(TOKEN_KEY);
     if (!saved) { setCheckingToken(false); return; }
-    fetch(`${BASE}/api/auth/police/verify`, {
+    fetch(`${getWebApiOrigin()}/api/auth/police/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: saved }),
@@ -209,7 +208,7 @@ export default function PoliceDashboard() {
     const locationLine = [place.fullName, locationDetail.trim()].filter(Boolean).join(", ");
     setSubmitting(true);
     try {
-      const res = await fetch(`${BASE}/api/incidents`, {
+      const res = await fetch(`${getWebApiOrigin()}/api/incidents`, {
         method: "POST",
         headers: policeHeaders(token),
         body: JSON.stringify({
@@ -245,7 +244,7 @@ export default function PoliceDashboard() {
 
   const resolveIncident = async (id: string) => {
     if (!token) return;
-    const res = await fetch(`${BASE}/api/incidents/${id}`, {
+    const res = await fetch(`${getWebApiOrigin()}/api/incidents/${id}`, {
       method: "PATCH",
       headers: policeHeaders(token),
       body: JSON.stringify({ status: "resolved" }),
@@ -258,7 +257,7 @@ export default function PoliceDashboard() {
 
   const verifyReport = async (id: string) => {
     if (!token) return;
-    const res = await fetch(`${BASE}/api/incidents/${id}`, {
+    const res = await fetch(`${getWebApiOrigin()}/api/incidents/${id}`, {
       method: "PATCH",
       headers: policeHeaders(token),
       body: JSON.stringify({ isVerifiedByPolice: true, severity: "high" }),

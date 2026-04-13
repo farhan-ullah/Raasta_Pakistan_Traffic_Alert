@@ -11,6 +11,31 @@ export type AuthTokenGetter = () => Promise<string | null> | string | null;
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
+/**
+ * Verbose HTTP logging (prefixed `[API]` in Metro and `adb logcat`).
+ * - **Development:** enabled when `__DEV__` is true (debug builds / Metro) without env.
+ * - **Release APK/IPA:** set `EXPO_PUBLIC_API_DEBUG=1` at **bundle** time, then rebuild.
+ */
+function isApiDebugEnabled(): boolean {
+  const dev = (globalThis as { __DEV__?: boolean }).__DEV__;
+  if (dev) return true;
+  try {
+    const v = process.env.EXPO_PUBLIC_API_DEBUG;
+    return v === "1" || v === "true";
+  } catch {
+    return false;
+  }
+}
+
+function apiLog(...args: unknown[]): void {
+  if (!isApiDebugEnabled()) return;
+  // `console.warn` is more likely to show in release logcat than `log` on some devices.
+  console.warn("[API]", ...args);
+}
+
+/** Log the fetch-failure hint at most once (avoid spam when many queries retry). */
+let networkFailureHintLogged = false;
+
 // ---------------------------------------------------------------------------
 // Module-level configuration
 // ---------------------------------------------------------------------------
@@ -27,6 +52,7 @@ let _authTokenGetter: AuthTokenGetter | null = null;
  */
 export function setBaseUrl(url: string | null): void {
   _baseUrl = url ? url.replace(/\/+$/, "") : null;
+  apiLog("setBaseUrl", _baseUrl ?? "(null)");
 }
 
 /**
@@ -360,10 +386,27 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  apiLog("→", method, requestInfo.url);
+
+  let response: Response;
+  try {
+    response = await fetch(input, { ...init, method, headers });
+  } catch (err) {
+    apiLog("✗ network (fetch threw)", requestInfo.url, err);
+    if (isApiDebugEnabled() && !networkFailureHintLogged) {
+      networkFailureHintLogged = true;
+      apiLog(
+        "hint: if this URL works on your PC but not on the device, the host may block the phone’s network (firewall) or only HTTPS may be allowed — expose port 8090 or use HTTPS.",
+      );
+    }
+    throw err;
+  }
+
+  apiLog("←", response.status, requestInfo.url);
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
+    apiLog("✗ HTTP error", requestInfo.url, truncate(String(JSON.stringify(errorData)), 800));
     throw new ApiError(response, errorData, requestInfo);
   }
 
