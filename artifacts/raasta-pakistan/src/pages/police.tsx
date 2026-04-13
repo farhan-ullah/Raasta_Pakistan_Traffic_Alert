@@ -89,8 +89,8 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-[#01411C] rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/40">
-            <img src="/police_icon.png" alt="" className="w-10 h-10 object-contain" width={40} height={40} />
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 ">
+            <img src="/police_icon.png" alt="" className="w-10 h-10 object-contain" width={60} height={60} />
           </div>
           <h1 className="text-2xl font-black text-white">Police Command</h1>
           <p className="text-gray-400 text-sm mt-1">Raasta — Islamabad Traffic Control</p>

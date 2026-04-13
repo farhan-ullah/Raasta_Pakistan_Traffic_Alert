@@ -33,7 +33,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <NavItem
             href="/police"
-            icon={<img src="/police_icon.png" alt="Police" className="w-5 h-5 object-contain" />}
+            icon={<Shield size={22} />}
             label="Police"
             isActive={location.startsWith("/police")}
           />
