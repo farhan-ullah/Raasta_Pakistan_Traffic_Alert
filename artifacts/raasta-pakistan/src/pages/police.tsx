@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { useListIncidents } from "@workspace/api-client-react";
+import { useListIncidents, type GeocodePlace } from "@workspace/api-client-react";
+import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import {
   Shield, Plus, MapPin, Clock, AlertTriangle, CheckCircle,
-  X, ChevronDown, Camera, Users, ShieldCheck, LogOut, Lock, Eye, EyeOff
+  X, Camera, Users, ShieldCheck, LogOut, Lock, Eye, EyeOff
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,11 +24,6 @@ const SEVERITY_STYLES: Record<string, string> = {
 const TYPE_EMOJI: Record<string, string> = {
   blockage: "🚫", construction: "🚧", vip_movement: "👑", accident: "💥", congestion: "🚗",
 };
-const ISLAMABAD_AREAS = [
-  "Blue Area", "F-6", "F-7", "F-8", "F-10", "G-9", "G-10", "G-11",
-  "I-8", "I-10", "Faizabad", "Zero Point", "Constitution Avenue",
-  "Margalla Hills", "Pir Wadhai", "PWD",
-];
 const INCIDENT_TYPES = [
   { value: "blockage", label: "Road Blockage" },
   { value: "construction", label: "Construction" },
@@ -161,10 +157,12 @@ export default function PoliceDashboard() {
   const [checkingToken, setCheckingToken] = useState(true);
   const [tab, setTab] = useState<Tab>("citizen");
   const [form, setForm] = useState({
-    type: "blockage", title: "", description: "", location: "",
-    area: "", customArea: "", severity: "medium", officerName: "", badge: "",
+    type: "blockage", title: "", description: "", severity: "medium", officerName: "", badge: "",
     affectedRoads: "", alternateRoutes: "", estimatedDuration: "",
   });
+  const [place, setPlace] = useState<GeocodePlace | null>(null);
+  const [locQuery, setLocQuery] = useState("");
+  const [locationDetail, setLocationDetail] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const queryClient = useQueryClient();
@@ -207,8 +205,8 @@ export default function PoliceDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.location.trim() || !token) return;
-    const finalArea = form.customArea.trim() || form.area;
+    if (!form.title.trim() || !place || !token) return;
+    const locationLine = [place.fullName, locationDetail.trim()].filter(Boolean).join(", ");
     setSubmitting(true);
     try {
       const res = await fetch(`${BASE}/api/incidents`, {
@@ -218,11 +216,11 @@ export default function PoliceDashboard() {
           type: form.type,
           title: form.title,
           description: form.description,
-          location: form.location,
-          area: finalArea,
-          city: "Islamabad",
-          lat: 33.6844 + (Math.random() - 0.5) * 0.08,
-          lng: 73.0479 + (Math.random() - 0.5) * 0.08,
+          location: locationLine,
+          area: place.area ?? "",
+          city: place.state ?? "Unknown",
+          lat: place.lat,
+          lng: place.lng,
           severity: form.severity,
           officerName: `${form.officerName}${form.badge ? ` (${form.badge})` : ""}`,
           reportedBy: "police",
@@ -234,7 +232,10 @@ export default function PoliceDashboard() {
       if (!res.ok) throw new Error();
       await queryClient.invalidateQueries();
       toast({ title: "Alert posted!", description: "Live on the map now." });
-      setForm({ type: "blockage", title: "", description: "", location: "", area: "", customArea: "", severity: "medium", officerName: "", badge: "", affectedRoads: "", alternateRoutes: "", estimatedDuration: "" });
+      setForm({ type: "blockage", title: "", description: "", severity: "medium", officerName: "", badge: "", affectedRoads: "", alternateRoutes: "", estimatedDuration: "" });
+      setPlace(null);
+      setLocQuery("");
+      setLocationDetail("");
     } catch {
       toast({ title: "Failed to post alert", variant: "destructive" });
     } finally {
@@ -488,23 +489,26 @@ export default function PoliceDashboard() {
                   <input value={form.badge} onChange={e => setForm(f => ({ ...f, badge: e.target.value }))}
                     placeholder="Badge #" className="bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
                 </div>
-                <div className="relative">
-                  <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value, customArea: "" }))}
-                    className={`w-full bg-white/10 border rounded-xl px-3 py-2.5 text-sm text-white appearance-none focus:outline-none focus:border-white/40 ${form.customArea ? "border-white/10 text-gray-500" : "border-white/20"}`}>
-                    <option value="" className="bg-gray-900">Select area from list...</option>
-                    {ISLAMABAD_AREAS.map(a => <option key={a} value={a} className="bg-gray-900">{a}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">Location * — search any place</p>
+                  <LocationAutocomplete
+                    variant="dark"
+                    value={locQuery}
+                    onChange={(v) => {
+                      setLocQuery(v);
+                      if (place && v !== place.fullName) setPlace(null);
+                    }}
+                    selected={place}
+                    onSelect={(p) => {
+                      setPlace(p);
+                      setLocQuery(p.fullName);
+                    }}
+                    placeholder="e.g. F-6 Islamabad, MM Alam Road Lahore…"
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-px bg-gray-700" />
-                  <span className="text-[11px] text-gray-500 shrink-0">or type manually</span>
-                  <div className="flex-1 h-px bg-gray-700" />
-                </div>
-                <input value={form.customArea} onChange={e => setForm(f => ({ ...f, customArea: e.target.value, area: e.target.value ? "" : f.area }))}
-                  placeholder="e.g. New Islamabad, Koral, Tarlai..." className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
-                <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  placeholder="Street / landmark *" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
+                <input value={locationDetail} onChange={e => setLocationDetail(e.target.value)}
+                  placeholder="Additional detail (optional) — e.g. near Gate 2, main signal"
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Situation description..." rows={3}
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
@@ -516,13 +520,13 @@ export default function PoliceDashboard() {
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40 resize-none" />
                 <input value={form.estimatedDuration} onChange={e => setForm(f => ({ ...f, estimatedDuration: e.target.value }))}
                   placeholder="Estimated duration (e.g. 2 hours)" className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-white/40" />
-                {(!form.title.trim() || !form.location.trim()) && !submitting && (
+                {(!form.title.trim() || !place) && !submitting && (
                   <p className="text-xs text-amber-300/95 text-center leading-snug px-1">
-                    Add <span className="font-semibold">incident title</span> (above) and{" "}
-                    <span className="font-semibold">street / landmark</span> — those two are required to post.
+                    Add <span className="font-semibold">incident title</span> and{" "}
+                    <span className="font-semibold">choose a location</span> from search suggestions — both are required to post.
                   </p>
                 )}
-                <Button type="submit" disabled={submitting || !form.title.trim() || !form.location.trim()}
+                <Button type="submit" disabled={submitting || !form.title.trim() || !place}
                   className="w-full bg-[#01411C] hover:bg-[#025a28] font-bold py-3 rounded-xl text-sm disabled:opacity-50">
                   {submitting ? "Posting..." : "🚔 Post Live Alert"}
                 </Button>

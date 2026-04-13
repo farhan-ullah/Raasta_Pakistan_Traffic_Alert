@@ -26,7 +26,16 @@ app.use(
     },
   }),
 );
-app.use(cors());
+const corsOrigins = process.env.CORS_ORIGINS?.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(
+  cors(
+    corsOrigins.length > 0
+      ? { origin: corsOrigins, credentials: true }
+      : undefined,
+  ),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

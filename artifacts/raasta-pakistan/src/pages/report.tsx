@@ -1,10 +1,12 @@
 import { useState, useRef } from "react";
-import { Camera, MapPin, AlertTriangle, CheckCircle, ImagePlus, X, Video, Phone, ChevronDown, Send } from "lucide-react";
+import { Camera, MapPin, AlertTriangle, CheckCircle, ImagePlus, X, Video, Phone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import type { GeocodePlace } from "@workspace/api-client-react";
+import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -14,12 +16,6 @@ const INCIDENT_TYPES = [
   { value: "construction", label: "Construction", emoji: "🚧", color: "bg-orange-100 text-orange-700 border-orange-300" },
   { value: "congestion", label: "Traffic Jam", emoji: "🚗", color: "bg-amber-100 text-amber-700 border-amber-300" },
   { value: "vip_movement", label: "VIP Movement", emoji: "👑", color: "bg-purple-100 text-purple-700 border-purple-300" },
-];
-
-const ISLAMABAD_AREAS = [
-  "Blue Area", "F-6", "F-7", "F-8", "F-10", "G-9", "G-10", "G-11",
-  "I-8", "I-10", "Faizabad", "Zero Point", "Constitution Avenue",
-  "Margalla Hills", "Pir Wadhai", "PWD", "DHA", "Bahria Town",
 ];
 
 function PhotoThumb({ src, onRemove }: { src: string; onRemove: () => void }) {
@@ -38,9 +34,9 @@ function PhotoThumb({ src, onRemove }: { src: string; onRemove: () => void }) {
 
 export default function CitizenReport() {
   const [type, setType] = useState("blockage");
-  const [area, setArea] = useState("");
-  const [customArea, setCustomArea] = useState("");
-  const [location, setLocation] = useState("");
+  const [place, setPlace] = useState<GeocodePlace | null>(null);
+  const [locQuery, setLocQuery] = useState("");
+  const [locationDetail, setLocationDetail] = useState("");
   const [description, setDescription] = useState("");
   const [phone, setPhone] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
@@ -67,24 +63,25 @@ export default function CitizenReport() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!location || !description) {
-      toast({ title: "Missing fields", description: "Please fill in location and description.", variant: "destructive" });
+    if (!place || !description) {
+      toast({ title: "Missing fields", description: "Choose a location from search and describe the situation.", variant: "destructive" });
       return;
     }
 
     setSubmitting(true);
     try {
       const mediaUrls = [...photos, ...(videoUrl ? [videoUrl] : [])];
-      const finalArea = customArea.trim() || area;
+      const headline = place.area ?? place.fullName.split(",")[0]?.trim() ?? "Location";
+      const locationStr = [place.fullName, locationDetail.trim()].filter(Boolean).join(", ");
       const payload = {
         type,
-        title: `${INCIDENT_TYPES.find(t => t.value === type)?.label} — ${finalArea || "Islamabad"}`,
+        title: `${INCIDENT_TYPES.find(t => t.value === type)?.label} — ${headline}`,
         description,
-        location: finalArea ? `${finalArea}, ${location}` : location,
-        area: finalArea,
-        city: "Islamabad",
-        lat: 33.6844 + (Math.random() - 0.5) * 0.05,
-        lng: 73.0479 + (Math.random() - 0.5) * 0.05,
+        location: locationStr,
+        area: place.area ?? "",
+        city: place.state ?? "Unknown",
+        lat: place.lat,
+        lng: place.lng,
         severity: "medium",
         reportedBy: "citizen",
         reporterPhone: phone || undefined,
@@ -120,7 +117,7 @@ export default function CitizenReport() {
         <p className="text-sm text-gray-400 text-center mb-8">Police will verify and update your report shortly.</p>
         <div className="flex gap-3">
           <Button
-            onClick={() => { setSubmitted(false); setType("blockage"); setArea(""); setCustomArea(""); setLocation(""); setDescription(""); setPhotos([]); setVideoUrl(""); setPhone(""); }}
+            onClick={() => { setSubmitted(false); setType("blockage"); setPlace(null); setLocQuery(""); setLocationDetail(""); setDescription(""); setPhotos([]); setVideoUrl(""); setPhone(""); }}
             variant="outline"
             className="border-[#01411C] text-[#01411C]"
           >
@@ -228,38 +225,25 @@ export default function CitizenReport() {
               <MapPin className="w-4 h-4 text-[#01411C]" />
               Location *
             </h3>
-            <div className="relative">
-              <select
-                value={area}
-                onChange={e => { setArea(e.target.value); setCustomArea(""); }}
-                className={`w-full border rounded-xl px-3 py-2.5 text-sm appearance-none focus:outline-none focus:border-[#01411C] ${customArea ? "border-gray-100 text-gray-300" : "border-gray-200"}`}
-              >
-                <option value="">Select from list...</option>
-                {ISLAMABAD_AREAS.map(a => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-gray-400 font-medium shrink-0">or type manually</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
-            <input
-              value={customArea}
-              onChange={e => { setCustomArea(e.target.value); if (e.target.value) setArea(""); }}
-              placeholder="e.g. New Islamabad, Koral, Tarlai, Humak..."
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#01411C] placeholder:text-gray-400"
+            <p className="text-xs text-gray-500 mb-2">Search any place — region is detected automatically.</p>
+            <LocationAutocomplete
+              value={locQuery}
+              onChange={(v) => {
+                setLocQuery(v);
+                if (place && v !== place.fullName) setPlace(null);
+              }}
+              selected={place}
+              onSelect={(p) => {
+                setPlace(p);
+                setLocQuery(p.fullName);
+              }}
+              placeholder="e.g. Blue Area Islamabad, Saddar Karachi…"
             />
             <input
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-              placeholder="Specific street / landmark *"
-              required
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#01411C]"
+              value={locationDetail}
+              onChange={e => setLocationDetail(e.target.value)}
+              placeholder="Extra detail (optional) — e.g. near bus stop, lane 2"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#01411C] placeholder:text-gray-400 mt-2"
             />
           </CardContent>
         </Card>

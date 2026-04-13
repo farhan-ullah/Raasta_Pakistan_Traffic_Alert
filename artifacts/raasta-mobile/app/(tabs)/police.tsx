@@ -20,8 +20,10 @@ import { IncidentCard } from "@/components/IncidentCard";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
+import type { GeocodePlace } from "@workspace/api-client-react";
 
 import { getApiOrigin } from "@/constants/apiOrigin";
+import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 
 const BASE = getApiOrigin();
 
@@ -136,10 +138,12 @@ export default function PoliceScreen() {
 
   const [tab, setTab] = useState<Tab>("citizen");
   const [form, setForm] = useState({
-    type: "blockage", title: "", description: "", location: "",
-    area: "", severity: "medium", officerName: "", badge: "",
+    type: "blockage", title: "", description: "", severity: "medium", officerName: "", badge: "",
     affectedRoads: "", alternateRoutes: "", duration: "",
   });
+  const [place, setPlace] = useState<GeocodePlace | null>(null);
+  const [locQuery, setLocQuery] = useState("");
+  const [locationDetail, setLocationDetail] = useState("");
   const [posting, setPosting] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -188,10 +192,11 @@ export default function PoliceScreen() {
   };
 
   const postAlert = async () => {
-    if (!form.title || !form.location) {
-      Alert.alert("Missing Info", "Title and location are required.");
+    if (!form.title || !place) {
+      Alert.alert("Missing Info", "Title and a searched location are required.");
       return;
     }
+    const locationLine = [place.fullName, locationDetail.trim()].filter(Boolean).join(", ");
     setPosting(true);
     try {
       const res = await fetch(`${BASE}/api/incidents`, {
@@ -201,11 +206,11 @@ export default function PoliceScreen() {
           type: form.type,
           title: form.title,
           description: form.description,
-          location: form.location,
-          area: form.area,
-          city: "Islamabad",
-          lat: 33.6844 + (Math.random() - 0.5) * 0.08,
-          lng: 73.0479 + (Math.random() - 0.5) * 0.08,
+          location: locationLine,
+          area: place.area ?? "",
+          city: place.state ?? "Unknown",
+          lat: place.lat,
+          lng: place.lng,
           severity: form.severity,
           officerName: `${form.officerName}${form.badge ? ` (${form.badge})` : ""}`,
           reportedBy: "police",
@@ -216,7 +221,10 @@ export default function PoliceScreen() {
       });
       if (res.ok) {
         await queryClient.invalidateQueries();
-        setForm({ type: "blockage", title: "", description: "", location: "", area: "", severity: "medium", officerName: "", badge: "", affectedRoads: "", alternateRoutes: "", duration: "" });
+        setForm({ type: "blockage", title: "", description: "", severity: "medium", officerName: "", badge: "", affectedRoads: "", alternateRoutes: "", duration: "" });
+        setPlace(null);
+        setLocQuery("");
+        setLocationDetail("");
         setTab("citizen");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert("Posted", "Alert is now live on the map.");
@@ -337,14 +345,12 @@ export default function PoliceScreen() {
             { key: "title", label: "Incident Title *", placeholder: "e.g. VIP Convoy on Constitution Ave" },
             { key: "officerName", label: "Officer Name", placeholder: "Your name" },
             { key: "badge", label: "Badge Number", placeholder: "Badge #" },
-            { key: "area", label: "Area / Sector", placeholder: "F-6, Blue Area, etc." },
-            { key: "location", label: "Street / Landmark *", placeholder: "Specific location" },
             { key: "duration", label: "Estimated Duration", placeholder: "e.g. 2 hours" },
           ].map((field) => (
             <View key={field.key}>
               <Text style={[styles.inputLabel, { color: colors.subtext }]}>{field.label}</Text>
               <TextInput
-                value={(form as any)[field.key]}
+                value={(form as Record<string, string>)[field.key]}
                 onChangeText={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
                 placeholder={field.placeholder}
                 placeholderTextColor={colors.mutedForeground}
@@ -352,6 +358,29 @@ export default function PoliceScreen() {
               />
             </View>
           ))}
+
+          <Text style={[styles.inputLabel, { color: colors.subtext }]}>Location * — search any place</Text>
+          <LocationAutocomplete
+            value={locQuery}
+            onChange={(v) => {
+              setLocQuery(v);
+              if (place && v !== place.fullName) setPlace(null);
+            }}
+            selected={place}
+            onSelect={(p) => {
+              setPlace(p);
+              setLocQuery(p.fullName);
+            }}
+            placeholder="e.g. Zero Point Islamabad, Mall Road…"
+          />
+          <Text style={[styles.inputLabel, { color: colors.subtext, marginTop: 8 }]}>Additional detail (optional)</Text>
+          <TextInput
+            value={locationDetail}
+            onChangeText={(v) => setLocationDetail(v)}
+            placeholder="e.g. near signal, flyover"
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+          />
 
           <Text style={[styles.inputLabel, { color: colors.subtext }]}>Description</Text>
           <TextInput
@@ -387,9 +416,9 @@ export default function PoliceScreen() {
           />
 
           <TouchableOpacity
-            style={[styles.postBtn, { backgroundColor: colors.primary, opacity: posting || !form.title || !form.location ? 0.6 : 1 }]}
+            style={[styles.postBtn, { backgroundColor: colors.primary, opacity: posting || !form.title || !place ? 0.6 : 1 }]}
             onPress={postAlert}
-            disabled={posting || !form.title || !form.location}
+            disabled={posting || !form.title || !place}
           >
             {posting ? <ActivityIndicator color="#fff" /> : (
               <>

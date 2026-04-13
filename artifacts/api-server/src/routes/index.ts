@@ -5,10 +5,12 @@ import merchantsRouter from "./merchants";
 import offersRouter from "./offers";
 import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
+import geocodeRouter from "./geocode";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(geocodeRouter);
 router.use(authRouter);
 router.use(incidentsRouter);
 router.use(merchantsRouter);

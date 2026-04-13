@@ -17,8 +17,10 @@ import { useColors } from "@/hooks/useColors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
+import type { GeocodePlace } from "@workspace/api-client-react";
 
 import { getApiOrigin } from "@/constants/apiOrigin";
+import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 
 const BASE = getApiOrigin();
 
@@ -30,27 +32,20 @@ const TYPES = [
   { value: "vip_movement", label: "VIP Movement", icon: "star" as const },
 ];
 
-const AREAS = [
-  "Blue Area", "F-6", "F-7", "F-8", "F-10", "G-9", "G-10", "G-11",
-  "I-8", "I-10", "Faizabad", "Zero Point", "Constitution Avenue",
-  "Margalla Hills", "Pir Wadhai", "PWD",
-];
-
 export default function ReportScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const [type, setType] = useState("blockage");
-  const [area, setArea] = useState("");
-  const [customArea, setCustomArea] = useState("");
-  const [location, setLocation] = useState("");
+  const [place, setPlace] = useState<GeocodePlace | null>(null);
+  const [locQuery, setLocQuery] = useState("");
+  const [locationDetail, setLocationDetail] = useState("");
   const [description, setDescription] = useState("");
   const [phone, setPhone] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [showAreaPicker, setShowAreaPicker] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 84 : insets.bottom + 60;
@@ -71,11 +66,12 @@ export default function ReportScreen() {
   };
 
   const handleSubmit = async () => {
-    const finalArea = customArea.trim() || area;
-    if (!finalArea || !location.trim()) {
-      Alert.alert("Missing Info", "Please enter the area and street/landmark.");
+    if (!place) {
+      Alert.alert("Missing Info", "Search and pick a location from the suggestions.");
       return;
     }
+    const headline = place.area ?? place.fullName.split(",")[0]?.trim() ?? "Location";
+    const locationStr = [place.fullName, locationDetail.trim()].filter(Boolean).join(", ");
     setSubmitting(true);
     try {
       const res = await fetch(`${BASE}/api/incidents`, {
@@ -83,13 +79,13 @@ export default function ReportScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          title: `${TYPES.find((t) => t.value === type)?.label} — ${finalArea}`,
+          title: `${TYPES.find((t) => t.value === type)?.label} — ${headline}`,
           description,
-          location: `${finalArea}, ${location}`,
-          area: finalArea,
-          city: "Islamabad",
-          lat: 33.6844 + (Math.random() - 0.5) * 0.05,
-          lng: 73.0479 + (Math.random() - 0.5) * 0.05,
+          location: locationStr,
+          area: place.area ?? "",
+          city: place.state ?? "Unknown",
+          lat: place.lat,
+          lng: place.lng,
           severity: "medium",
           reportedBy: "citizen",
           reporterPhone: phone || undefined,
@@ -114,9 +110,9 @@ export default function ReportScreen() {
   const reset = () => {
     setSubmitted(false);
     setType("blockage");
-    setArea("");
-    setCustomArea("");
-    setLocation("");
+    setPlace(null);
+    setLocQuery("");
+    setLocationDetail("");
     setDescription("");
     setPhone("");
     setPhotos([]);
@@ -205,55 +201,30 @@ export default function ReportScreen() {
 
         {/* Location */}
         <Text style={[styles.sectionLabel, { color: colors.text }]}>Location</Text>
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, marginBottom: 10 }}>
+          Search any place — region is set automatically.
+        </Text>
 
-        {/* Area picker */}
-        <TouchableOpacity
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => setShowAreaPicker(!showAreaPicker)}
-        >
-          <Text style={{ color: area ? colors.text : colors.mutedForeground, fontSize: 14 }}>
-            {area || "Select area / sector..."}
-          </Text>
-          <Feather name={showAreaPicker ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
-        </TouchableOpacity>
-
-        {showAreaPicker && (
-          <View style={[styles.areaPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-              {AREAS.map((a) => (
-                <TouchableOpacity
-                  key={a}
-                  style={[styles.areaItem, { borderBottomColor: colors.border }]}
-                  onPress={() => { setArea(a); setCustomArea(""); setShowAreaPicker(false); }}
-                >
-                  <Text style={[styles.areaItemText, { color: a === area ? colors.primary : colors.text }]}>{a}</Text>
-                  {a === area && <Feather name="check" size={14} color={colors.primary} />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        <View style={[styles.dividerRow]}>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>or type manually</Text>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-        </View>
-
-        <TextInput
-          value={customArea}
-          onChangeText={(v) => { setCustomArea(v); if (v) setArea(""); }}
-          placeholder="e.g. New Islamabad, Koral, Tarlai..."
-          placeholderTextColor={colors.mutedForeground}
-          style={[styles.textInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+        <LocationAutocomplete
+          value={locQuery}
+          onChange={(v) => {
+            setLocQuery(v);
+            if (place && v !== place.fullName) setPlace(null);
+          }}
+          selected={place}
+          onSelect={(p) => {
+            setPlace(p);
+            setLocQuery(p.fullName);
+          }}
+          placeholder="e.g. DHA Lahore, F-7 Islamabad…"
         />
 
         <TextInput
-          value={location}
-          onChangeText={setLocation}
-          placeholder="Specific street / landmark *"
+          value={locationDetail}
+          onChangeText={setLocationDetail}
+          placeholder="Extra detail (optional)"
           placeholderTextColor={colors.mutedForeground}
-          style={[styles.textInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+          style={[styles.textInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text, marginTop: 10 }]}
         />
 
         {/* Description */}
@@ -321,13 +292,6 @@ const styles = StyleSheet.create({
   removePhoto: { position: "absolute", top: 4, right: 4, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 10, padding: 3 },
   addPhotoBtn: { width: 100, height: 45, borderRadius: 12, borderWidth: 1.5, borderStyle: "dashed", alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
   addPhotoText: { fontSize: 12 },
-  input: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 10 },
-  areaPicker: { borderRadius: 12, borderWidth: 1, marginBottom: 10, overflow: "hidden" },
-  areaItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  areaItemText: { fontSize: 14 },
-  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
-  dividerLine: { flex: 1, height: 1 },
-  dividerText: { fontSize: 11, fontWeight: "600" as const },
   textInput: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14, marginBottom: 12 },
   textArea: { minHeight: 90, textAlignVertical: "top" },
   submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16, marginTop: 8 },
