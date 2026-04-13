@@ -721,3 +721,70 @@ export const GetAlternateRoutesResponseItem = zod.object({
 export const GetAlternateRoutesResponse = zod.array(
   GetAlternateRoutesResponseItem,
 );
+
+/**
+ * @summary Plan A to B driving route with incident-aware alternative
+ */
+export const PlanRouteBody = zod.object({
+  fromLat: zod.number(),
+  fromLng: zod.number(),
+  toLat: zod.number(),
+  toLng: zod.number(),
+});
+
+export const planRouteResponsePrimaryGeometryCoordinatesItemMin = 2;
+export const planRouteResponsePrimaryGeometryCoordinatesItemMax = 2;
+
+export const planRouteResponseRecommendedGeometryCoordinatesItemMin = 2;
+export const planRouteResponseRecommendedGeometryCoordinatesItemMax = 2;
+
+export const PlanRouteResponse = zod.object({
+  primary: zod.object({
+    geometry: zod.object({
+      type: zod.enum(["LineString"]),
+      coordinates: zod.array(
+        zod
+          .array(zod.number())
+          .min(planRouteResponsePrimaryGeometryCoordinatesItemMin)
+          .max(planRouteResponsePrimaryGeometryCoordinatesItemMax),
+      ),
+    }),
+    distanceMeters: zod.number(),
+    durationSeconds: zod.number(),
+    conflicts: zod.array(
+      zod.object({
+        id: zod.number(),
+        title: zod.string(),
+        type: zod.string(),
+        severity: zod.string(),
+        lat: zod.number(),
+        lng: zod.number(),
+      }),
+    ),
+  }),
+  recommended: zod.object({
+    geometry: zod.object({
+      type: zod.enum(["LineString"]),
+      coordinates: zod.array(
+        zod
+          .array(zod.number())
+          .min(planRouteResponseRecommendedGeometryCoordinatesItemMin)
+          .max(planRouteResponseRecommendedGeometryCoordinatesItemMax),
+      ),
+    }),
+    distanceMeters: zod.number(),
+    durationSeconds: zod.number(),
+    conflicts: zod.array(
+      zod.object({
+        id: zod.number(),
+        title: zod.string(),
+        type: zod.string(),
+        severity: zod.string(),
+        lat: zod.number(),
+        lng: zod.number(),
+      }),
+    ),
+  }),
+  recommendedIsAlternative: zod.boolean(),
+  textSuggestions: zod.array(zod.string()).optional(),
+});

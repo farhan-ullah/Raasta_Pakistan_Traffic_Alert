@@ -481,6 +481,29 @@ paths:
                 items:
                   $ref: "#/components/schemas/AlternateRoute"
 
+  /routes/plan:
+    post:
+      operationId: planRoute
+      tags: [routes]
+      summary: Plan A to B driving route with incident-aware alternative
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoutePlanRequest"
+      responses:
+        "200":
+          description: Primary OSRM route and recommended route after risk scoring
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoutePlanResponse"
+        "400":
+          description: Invalid coordinates
+        "502":
+          description: Upstream routing unavailable
+
 components:
   schemas:
     HealthStatus:
@@ -1034,3 +1057,79 @@ components:
           type: string
           enum: [low, medium, high]
       required: [id, name, description, estimatedTime, distance]
+
+    RoutePlanRequest:
+      type: object
+      required: [fromLat, fromLng, toLat, toLng]
+      properties:
+        fromLat:
+          type: number
+        fromLng:
+          type: number
+        toLat:
+          type: number
+        toLng:
+          type: number
+
+    RouteGeoJsonLineString:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [LineString]
+        coordinates:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 2
+            maxItems: 2
+
+    RouteConflict:
+      type: object
+      required: [id, title, type, severity, lat, lng]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+        severity:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+
+    RouteSegment:
+      type: object
+      required: [geometry, distanceMeters, durationSeconds, conflicts]
+      properties:
+        geometry:
+          $ref: "#/components/schemas/RouteGeoJsonLineString"
+        distanceMeters:
+          type: number
+        durationSeconds:
+          type: number
+        conflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteConflict"
+
+    RoutePlanResponse:
+      type: object
+      required: [primary, recommended, recommendedIsAlternative]
+      properties:
+        primary:
+          $ref: "#/components/schemas/RouteSegment"
+        recommended:
+          $ref: "#/components/schemas/RouteSegment"
+        recommendedIsAlternative:
+          type: boolean
+        textSuggestions:
+          type: array
+          items:
+            type: string

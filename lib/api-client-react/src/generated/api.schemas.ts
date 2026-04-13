@@ -382,6 +382,48 @@ export interface AlternateRoute {
   congestionLevel?: AlternateRouteCongestionLevel;
 }
 
+export interface RoutePlanRequest {
+  fromLat: number;
+  fromLng: number;
+  toLat: number;
+  toLng: number;
+}
+
+export type RouteGeoJsonLineStringType =
+  (typeof RouteGeoJsonLineStringType)[keyof typeof RouteGeoJsonLineStringType];
+
+export const RouteGeoJsonLineStringType = {
+  LineString: "LineString",
+} as const;
+
+export interface RouteGeoJsonLineString {
+  type: RouteGeoJsonLineStringType;
+  coordinates: number[][];
+}
+
+export interface RouteConflict {
+  id: number;
+  title: string;
+  type: string;
+  severity: string;
+  lat: number;
+  lng: number;
+}
+
+export interface RouteSegment {
+  geometry: RouteGeoJsonLineString;
+  distanceMeters: number;
+  durationSeconds: number;
+  conflicts: RouteConflict[];
+}
+
+export interface RoutePlanResponse {
+  primary: RouteSegment;
+  recommended: RouteSegment;
+  recommendedIsAlternative: boolean;
+  textSuggestions?: string[];
+}
+
 export type ListIncidentsParams = {
   status?: ListIncidentsStatus;
   type?: ListIncidentsType;

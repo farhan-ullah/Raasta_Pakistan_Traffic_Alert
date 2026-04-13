@@ -1,11 +1,14 @@
-import React, { useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Image } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
+import type { RoutePlanResponse } from "@/api/routePlan";
 import { useColors } from "@/hooks/useColors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import WebMapFallback from "./WebMapFallback";
 import { nativeMapChromeStyles as styles } from "./nativeMapChromeStyles";
+import { RoutePlannerCard } from "./RoutePlannerCard";
+import { lineStringToIosLatLng } from "./routeMapUtils";
 
 function hasGoogleMapsNativeKey(): boolean {
   return Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY?.trim());
@@ -32,12 +35,14 @@ function IosGoogleMapScreen() {
   const MapView = maps.default;
   const Marker = maps.Marker;
   const Callout = maps.Callout;
+  const Polyline = maps.Polyline;
   const PROVIDER_DEFAULT = maps.PROVIDER_DEFAULT;
 
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<any>(null);
   const [_selected, setSelected] = useState<string | null>(null);
+  const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
 
   const { data: incidents = [], isLoading, refetch } = useGetActiveMapIncidents({
     query: { refetchInterval: 15_000 } as any,
@@ -46,6 +51,24 @@ function IosGoogleMapScreen() {
   const topPad = insets.top;
   const activeCount = incidents.filter((i) => i.status === "active").length;
   const criticalCount = incidents.filter((i) => i.severity === "critical").length;
+
+  useEffect(() => {
+    if (!routePlan) return;
+    const coords = lineStringToIosLatLng(routePlan.recommended.geometry.coordinates as [number, number][]);
+    if (coords.length < 2) return;
+    mapRef.current?.fitToCoordinates(coords, {
+      edgePadding: { top: 140, right: 36, bottom: 200, left: 36 },
+      animated: true,
+    });
+  }, [routePlan]);
+
+  const primaryIos = routePlan?.recommendedIsAlternative
+    ? lineStringToIosLatLng(routePlan.primary.geometry.coordinates as [number, number][])
+    : [];
+  const recIos = routePlan
+    ? lineStringToIosLatLng(routePlan.recommended.geometry.coordinates as [number, number][])
+    : [];
+  const abCoords = recIos.length > 0 ? { a: recIos[0]!, b: recIos[recIos.length - 1]! } : null;
 
   return (
     <View style={styles.container}>
@@ -57,6 +80,23 @@ function IosGoogleMapScreen() {
         showsUserLocation
         showsMyLocationButton={false}
       >
+        {routePlan?.recommendedIsAlternative && primaryIos.length > 1 ? (
+          <Polyline
+            coordinates={primaryIos}
+            strokeColor="rgba(148, 163, 184, 0.85)"
+            strokeWidth={4}
+            lineDashPattern={[4, 6]}
+          />
+        ) : null}
+        {recIos.length > 1 ? (
+          <Polyline coordinates={recIos} strokeColor="#15803d" strokeWidth={5} lineCap="round" lineJoin="round" />
+        ) : null}
+        {abCoords ? (
+          <>
+            <Marker coordinate={abCoords.a} pinColor="green" title="A" description="Start" />
+            <Marker coordinate={abCoords.b} pinColor="red" title="B" description="End" />
+          </>
+        ) : null}
         {incidents.map((incident: (typeof incidents)[0]) => {
           const color = SEVERITY_COLOR[incident.severity ?? "medium"] ?? "#f59e0b";
           const key = incident.id ?? `${incident.lat}_${incident.lng}`;
@@ -102,6 +142,8 @@ function IosGoogleMapScreen() {
           </View>
         </View>
       </View>
+
+      <RoutePlannerCard topOffset={topPad + 58} onRoutePlanned={setRoutePlan} />
 
       <View style={[styles.summary, { bottom: insets.bottom + 90, backgroundColor: colors.card, borderColor: colors.border }]}>
         {isLoading ? (

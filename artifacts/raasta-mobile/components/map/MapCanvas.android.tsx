@@ -1,19 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Pressable, Image } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Pressable } from "react-native";
 import {
   MapView,
   Camera,
   UserLocation,
   MarkerView,
+  ShapeSource,
+  LineLayer,
   requestAndroidLocationPermissions,
   type CameraRef,
 } from "@maplibre/maplibre-react-native";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
+import type { RoutePlanResponse } from "@/api/routePlan";
 import { useColors } from "@/hooks/useColors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import { nativeMapChromeStyles as styles } from "./nativeMapChromeStyles";
+import { RoutePlannerCard } from "./RoutePlannerCard";
+import { boundsCenterZoom, lineStringFeature } from "./routeMapUtils";
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: "#dc2626",
@@ -71,6 +76,7 @@ export default function MapCanvas() {
   } | null>(null);
   /** OS runtime permission — manifest alone is not enough on Android 6+. */
   const [locationGranted, setLocationGranted] = useState(false);
+  const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +100,23 @@ export default function MapCanvas() {
 
   const mapStyle = useMemo(() => OSM_MAP_STYLE, []);
 
+  useEffect(() => {
+    if (!routePlan) return;
+    const coords = routePlan.recommended.geometry.coordinates as [number, number][];
+    if (coords.length < 2) return;
+    const { center, zoomLevel } = boundsCenterZoom(coords);
+    cameraRef.current?.setCamera({
+      centerCoordinate: center,
+      zoomLevel,
+      animationDuration: 900,
+      animationMode: "easeTo",
+    });
+  }, [routePlan]);
+
+  const routeCoords = routePlan?.recommended.geometry.coordinates as [number, number][] | undefined;
+  const routeStart = routeCoords?.[0];
+  const routeEnd = routeCoords && routeCoords.length > 1 ? routeCoords[routeCoords.length - 1] : undefined;
+
   return (
     <View style={styles.container}>
       <MapView
@@ -111,6 +134,67 @@ export default function MapCanvas() {
           }}
         />
         <UserLocation visible={locationGranted} />
+
+        {routePlan?.recommendedIsAlternative ? (
+          <ShapeSource id="raasta_route_primary" shape={lineStringFeature(routePlan.primary.geometry)}>
+            <LineLayer
+              id="raasta_route_primary_line"
+              style={{
+                lineColor: "#94a3b8",
+                lineWidth: 4,
+                lineDasharray: [1, 2],
+                lineOpacity: 0.75,
+              }}
+            />
+          </ShapeSource>
+        ) : null}
+
+        {routePlan ? (
+          <ShapeSource id="raasta_route_recommended" shape={lineStringFeature(routePlan.recommended.geometry)}>
+            <LineLayer
+              id="raasta_route_recommended_line"
+              style={{
+                lineColor: "#15803d",
+                lineWidth: 5,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+          </ShapeSource>
+        ) : null}
+
+        {routeStart && routeEnd ? (
+          <>
+            <MarkerView coordinate={routeStart} allowOverlap>
+              <View
+                style={{
+                  backgroundColor: "#15803d",
+                  paddingHorizontal: 7,
+                  paddingVertical: 3,
+                  borderRadius: 6,
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "900" }}>A</Text>
+              </View>
+            </MarkerView>
+            <MarkerView coordinate={routeEnd} allowOverlap>
+              <View
+                style={{
+                  backgroundColor: "#b91c1c",
+                  paddingHorizontal: 7,
+                  paddingVertical: 3,
+                  borderRadius: 6,
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "900" }}>B</Text>
+              </View>
+            </MarkerView>
+          </>
+        ) : null}
 
         {incidents.map((incident: (typeof incidents)[0]) => {
           const color = SEVERITY_COLOR[incident.severity ?? "medium"] ?? "#f59e0b";
@@ -150,6 +234,8 @@ export default function MapCanvas() {
           </View>
         </View>
       </View>
+
+      <RoutePlannerCard topOffset={topPad + 58} onRoutePlanned={setRoutePlan} />
 
       {selected ? (
         <View

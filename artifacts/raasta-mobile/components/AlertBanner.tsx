@@ -162,7 +162,7 @@ export function AlertBanner() {
 
   // Sort: critical first
   const sorted = [...activeAlerts].sort((a, b) => {
-    const order = { critical: 0, high: 1, medium: 2, low: 3 };
+    const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     return (order[a.severity] ?? 9) - (order[b.severity] ?? 9);
   });
 

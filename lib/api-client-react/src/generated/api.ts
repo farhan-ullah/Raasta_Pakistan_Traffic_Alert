@@ -37,6 +37,8 @@ import type {
   OfferStats,
   RedeemOfferBody,
   RedemptionToken,
+  RoutePlanRequest,
+  RoutePlanResponse,
   UpdateIncidentBody,
   UpdateMerchantBody,
   UpdateOfferBody,
@@ -2066,3 +2068,89 @@ export function useGetAlternateRoutes<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Plan A to B driving route with incident-aware alternative
+ */
+export const getPlanRouteUrl = () => {
+  return `/api/routes/plan`;
+};
+
+export const planRoute = async (
+  routePlanRequest: RoutePlanRequest,
+  options?: RequestInit,
+): Promise<RoutePlanResponse> => {
+  return customFetch<RoutePlanResponse>(getPlanRouteUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(routePlanRequest),
+  });
+};
+
+export const getPlanRouteMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof planRoute>>,
+    TError,
+    { data: BodyType<RoutePlanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof planRoute>>,
+  TError,
+  { data: BodyType<RoutePlanRequest> },
+  TContext
+> => {
+  const mutationKey = ["planRoute"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof planRoute>>,
+    { data: BodyType<RoutePlanRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return planRoute(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlanRouteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof planRoute>>
+>;
+export type PlanRouteMutationBody = BodyType<RoutePlanRequest>;
+export type PlanRouteMutationError = ErrorType<void>;
+
+/**
+ * @summary Plan A to B driving route with incident-aware alternative
+ */
+export const usePlanRoute = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof planRoute>>,
+    TError,
+    { data: BodyType<RoutePlanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof planRoute>>,
+  TError,
+  { data: BodyType<RoutePlanRequest> },
+  TContext
+> => {
+  return useMutation(getPlanRouteMutationOptions(options));
+};
