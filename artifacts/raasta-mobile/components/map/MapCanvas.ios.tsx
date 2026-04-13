@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -93,7 +93,7 @@ function IosGoogleMapScreen() {
       <View style={[styles.header, { paddingTop: topPad + 8 }]}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>Raasta</Text>
+            <Text style={styles.headerTitle}>Raasta by Averox</Text>
             <Text style={styles.headerSub}>Islamabad Live Traffic</Text>
           </View>
           <View style={styles.liveTag}>

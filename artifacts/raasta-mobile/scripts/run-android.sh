@@ -38,4 +38,15 @@ if [[ -n "${ANDROID_HOME:-}" ]] && [[ -d "$MOBILE/android" ]]; then
   echo "sdk.dir=${ANDROID_HOME}" > "$MOBILE/android/local.properties"
 fi
 
+# Release: drop Metro→drawable copies so AAPT does not merge stale images (e.g. after fixing assets).
+# Do **not** run `./gradlew clean` here: `:externalNativeBuildCleanRelease` can fail with CMake/ninja when
+# New Architecture codegen jni folders are missing (pnpm layout); see RN issue reports).
+if [[ "$*" == *--variant*release* ]] || [[ "$*" == *Release* ]]; then
+  if [[ -d "$MOBILE/android/app/build" ]]; then
+    echo "[android] clear bundled drawable intermediates (release)"
+    rm -rf "$MOBILE/android/app/build/generated/res/createBundleReleaseJsAndAssets" 2>/dev/null || true
+    rm -rf "$MOBILE/android/app/build/intermediates/packaged_res/release" 2>/dev/null || true
+  fi
+fi
+
 exec npx expo run:android "$@"

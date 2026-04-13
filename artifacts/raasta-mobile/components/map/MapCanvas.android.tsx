@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Pressable, Image } from "react-native";
 import {
   MapView,
   Camera,
@@ -141,7 +141,7 @@ export default function MapCanvas() {
       <View style={[styles.header, { paddingTop: topPad + 8 }]}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>Raasta</Text>
+            <Text style={styles.headerTitle}>Raasta by Averox</Text>
             <Text style={styles.headerSub}>Islamabad Live Traffic · OSM</Text>
           </View>
           <View style={styles.liveTag}>

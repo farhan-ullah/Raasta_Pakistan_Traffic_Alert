@@ -50,8 +50,8 @@ export default function Home() {
     >
       {/* Header */}
       <div className="bg-[#01411C] text-white px-4 pt-4 pb-3 shadow-md z-10 shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-xl font-black tracking-tight">Raasta Pakistan</h1>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-2xl font-black">Raasta by Averox</span>
           <div className="flex items-center gap-2">
             <div className="text-[10px] text-green-300 font-medium">
               {secondsAgo < 5 ? "Just updated" : `${secondsAgo}s ago`}

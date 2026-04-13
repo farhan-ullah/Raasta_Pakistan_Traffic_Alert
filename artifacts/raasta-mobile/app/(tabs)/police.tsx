@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Image,
 } from "react-native";
 import { useListIncidents } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
@@ -73,9 +74,14 @@ function LoginScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
       <View style={styles.loginWrap}>
-        <View style={[styles.loginIconBox, { backgroundColor: colors.primary }]}>
-          <Feather name="shield" size={40} color="#fff" />
-        </View>
+       
+          <Image
+            source={require("@/assets/images/police_icon.png")}
+            style={{ width: 40, height: 40 }}
+            resizeMode="contain"
+            accessibilityLabel="Police"
+          />
+       
         <Text style={[styles.loginTitle, { color: colors.text }]}>Police Command</Text>
         <Text style={[styles.loginSub, { color: colors.subtext }]}>Raasta — Islamabad Traffic Control</Text>
 
@@ -115,7 +121,11 @@ function LoginScreen() {
           >
             {loading ? <ActivityIndicator color="#fff" /> : (
               <>
-                <Feather name="shield" size={16} color="#fff" />
+                <Image
+                  source={require("@/assets/images/police_icon.png")}
+                  style={{ width: 16, height: 16 }}
+                  resizeMode="contain"
+                />
                 <Text style={styles.loginBtnText}>Enter Portal</Text>
               </>
             )}
@@ -242,7 +252,11 @@ export default function PoliceScreen() {
       <View style={[styles.header, { paddingTop: topPad + 8, backgroundColor: colors.primary }]}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <Feather name="shield" size={22} color="#fff" />
+            <Image
+              source={require("@/assets/images/police_icon.png")}
+              style={{ width: 22, height: 22 }}
+              resizeMode="contain"
+            />
             <View>
               <Text style={styles.headerTitle}>Police Command</Text>
               <Text style={styles.headerSub}>Islamabad Traffic Control</Text>

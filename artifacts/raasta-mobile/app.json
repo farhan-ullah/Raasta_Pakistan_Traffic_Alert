@@ -24,6 +24,10 @@
     },
     "android": {
       "package": "com.raasta.pakistan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#01411C"
+      },
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.CAMERA",

@@ -90,7 +90,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-[#01411C] rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/40">
-            <Shield className="w-10 h-10 text-white" />
+            <img src="/police_icon.png" alt="" className="w-10 h-10 object-contain" width={40} height={40} />
           </div>
           <h1 className="text-2xl font-black text-white">Police Command</h1>
           <p className="text-gray-400 text-sm mt-1">Raasta — Islamabad Traffic Control</p>
@@ -357,7 +357,7 @@ export default function PoliceDashboard() {
       <div className="bg-[#01411C] px-4 pt-4 pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Shield className="w-6 h-6" />
+            <img src="/police_icon.png" alt="" className="w-6 h-6 object-contain" width={24} height={24} />
             <div>
               <h1 className="text-lg font-black">Police Command</h1>
               <p className="text-green-200 text-[10px]">Islamabad Traffic Control</p>
