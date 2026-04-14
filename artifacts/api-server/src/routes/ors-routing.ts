@@ -9,6 +9,9 @@ import { normalizeIncidentType, orsAvoidRadiusMeters } from "./incident-zones";
 
 const ORS_BASE = process.env["OPENROUTESERVICE_BASE_URL"]?.replace(/\/+$/, "") ?? "https://api.openrouteservice.org";
 const ORS_TIMEOUT_MS = Number(process.env["OPENROUTESERVICE_TIMEOUT_MS"] ?? 25_000);
+/** ORS snaps each waypoint to the road; default ~350m causes 404 off-network pins. */
+const ORS_SNAP_RADIUS_METERS = Number(process.env["ORS_SNAP_RADIUS_METERS"] ?? 5_000);
+const OSRM_BASE_SNAP = process.env["OSRM_BASE_URL"]?.replace(/\/+$/, "") ?? "https://router.project-osrm.org";
 
 function orsApiKey(): string | undefined {
   return process.env["OPENROUTESERVICE_API_KEY"]?.trim();
@@ -77,6 +80,27 @@ function buildAvoidMultiPolygon(incidents: IncidentRow[], maxPolygons: number): 
   return { type: "MultiPolygon", coordinates };
 }
 
+/** Snap a point to the nearest drivable edge (same OSRM used for fallback routing). */
+async function osrmNearestSnapLngLat(lng: number, lat: number): Promise<[number, number] | null> {
+  const url = `${OSRM_BASE_SNAP}/nearest/v1/driving/${lng},${lat}?number=1`;
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), 8_000);
+  try {
+    const res = await fetch(url, { method: "GET", signal: ac.signal });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { waypoints?: Array<{ location?: [number, number] }> };
+    const loc = data.waypoints?.[0]?.location;
+    if (Array.isArray(loc) && loc.length >= 2 && typeof loc[0] === "number" && typeof loc[1] === "number") {
+      return [loc[0], loc[1]];
+    }
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(tid);
+  }
+  return null;
+}
+
 async function orsPost(path: string, body: unknown, apiKey: string): Promise<Response> {
   const url = `${ORS_BASE}${path}`;
   const ac = new AbortController();
@@ -118,6 +142,8 @@ async function executeOrsDirections(
     coordinates: [number, number][];
     preference: string;
     units: string;
+    /** Per-waypoint max snap distance to the road network (m). Raises default ~350m. */
+    radiuses?: number[];
     options?: { avoid_polygons: AvoidMultiPolygon };
   },
   apiKey: string,
@@ -189,40 +215,60 @@ export async function fetchOrsRouteWithAvoidPolygons(
 
   let lastFailureReason = "unknown";
 
-  const baseCoords = {
-    coordinates: [
-      [fromLng, fromLat],
-      [toLng, toLat],
-    ] as [number, number][],
-    preference: "recommended",
-    units: "m",
+  const snapR = Number.isFinite(ORS_SNAP_RADIUS_METERS) && ORS_SNAP_RADIUS_METERS >= 350 ? ORS_SNAP_RADIUS_METERS : 5_000;
+
+  let legA: [number, number] = [fromLng, fromLat];
+  let legB: [number, number] = [toLng, toLat];
+
+  const runCapLoop = async (): Promise<OrsFetchResult | null> => {
+    const baseCoords = {
+      coordinates: [legA, legB],
+      preference: "recommended",
+      units: "m",
+      radiuses: [snapR, snapR],
+    };
+
+    const caps =
+      incidents.length === 0
+        ? [0]
+        : [...new Set([MAX_AVOID_POLYGONS, 4, 2, 1])].sort((a, b) => b - a);
+
+    for (const cap of caps) {
+      const avoid = buildAvoidMultiPolygon(incidents, cap);
+      const baseBody = {
+        ...baseCoords,
+        ...(avoid ? { options: { avoid_polygons: avoid } } : {}),
+      };
+      const exec = await executeOrsDirections(baseBody, apiKey);
+      if (exec.ok) {
+        if (incidents.length > 0 && cap < MAX_AVOID_POLYGONS) {
+          console.warn(
+            `[ORS] Route obtained with reduced avoidance (cap=${cap} polygons; full set failed or unparsable).`,
+          );
+        }
+        return { route: exec.route, orsStatus: "ok" };
+      }
+      lastFailureReason = exec.reason;
+    }
+    return null;
   };
 
-  /**
-   * Descending caps: full set → 4 → 2. We intentionally do **not** fall back to plain ORS (0 polygons)
-   * while incidents exist — that would route straight through blockages and defeats avoidance.
-   */
-  const caps =
-    incidents.length === 0
-      ? [0]
-      : [...new Set([MAX_AVOID_POLYGONS, 4, 2, 1])].sort((a, b) => b - a);
+  let result = await runCapLoop();
+  if (result) return result;
 
-  for (const cap of caps) {
-    const avoid = buildAvoidMultiPolygon(incidents, cap);
-    const baseBody = {
-      ...baseCoords,
-      ...(avoid ? { options: { avoid_polygons: avoid } } : {}),
-    };
-    const exec = await executeOrsDirections(baseBody, apiKey);
-    if (exec.ok) {
-      if (incidents.length > 0 && cap < MAX_AVOID_POLYGONS) {
-        console.warn(
-          `[ORS] Route obtained with reduced avoidance (cap=${cap} polygons; full set failed or unparsable).`,
-        );
-      }
-      return { route: exec.route, orsStatus: "ok" };
+  /** 404 "routable point" — widen ORS snap and/or align to OSRM nearest road, then retry once. */
+  const looksLikeSnap =
+    /404|routable point|350\.0|coordinate 0|coordinate 1/i.test(lastFailureReason);
+  if (looksLikeSnap) {
+    const snappedA = await osrmNearestSnapLngLat(fromLng, fromLat);
+    const snappedB = await osrmNearestSnapLngLat(toLng, toLat);
+    if (snappedA && snappedB) {
+      legA = snappedA;
+      legB = snappedB;
+      console.warn("[ORS] Retrying directions after OSRM nearest snap for A and B.");
+      result = await runCapLoop();
+      if (result) return result;
     }
-    lastFailureReason = exec.reason;
   }
 
   return { route: null, orsStatus: "failed", orsFailureHint: lastFailureReason };
