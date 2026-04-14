@@ -92,7 +92,10 @@ async function orsPost(path: string, body: unknown): Promise<Response> {
 }
 
 /**
- * Returns a route that **avoids** blocked areas, or `null` if ORS is not configured / failed.
+ * Returns an OpenRouteService route, or `null` if ORS is not configured / failed.
+ * When there are **no** active incidents we still call ORS (no `avoid_polygons`) so the API
+ * can report `routingBackend: "openrouteservice"` whenever the key works — otherwise every
+ * empty-map test looked like “OSRM only”.
  */
 export async function fetchOrsRouteWithAvoidPolygons(
   fromLat: number,
@@ -104,18 +107,22 @@ export async function fetchOrsRouteWithAvoidPolygons(
   if (!ORS_KEY) return null;
 
   const avoid = buildAvoidMultiPolygon(incidents);
-  if (!avoid) return null;
-  const baseBody = {
+  const baseBody: {
+    coordinates: [number, number][];
+    preference: string;
+    units: string;
+    options?: { avoid_polygons: AvoidMultiPolygon };
+  } = {
     coordinates: [
       [fromLng, fromLat],
       [toLng, toLat],
-    ] as [number, number][],
+    ],
     preference: "recommended",
     units: "m",
-    options: {
-      avoid_polygons: avoid,
-    },
   };
+  if (avoid) {
+    baseBody.options = { avoid_polygons: avoid };
+  }
 
   /** Prefer GeoJSON endpoint — returns LineString coordinates (no encoded polyline ambiguity). */
   let res = await orsPost("/v2/directions/driving-car/geojson", baseBody);

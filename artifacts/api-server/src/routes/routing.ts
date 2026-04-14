@@ -468,7 +468,13 @@ router.post(
           }
         }
       }
-      textSuggestions.add("Recommended route avoids reported hazard areas (OpenRouteService).");
+      if (incidents.length > 0) {
+        textSuggestions.add("Recommended route avoids reported hazard areas (OpenRouteService).");
+      } else {
+        textSuggestions.add(
+          "Recommended route uses OpenRouteService (no active incidents to avoid — add alerts to enable polygon avoidance).",
+        );
+      }
       if (orsConflicts.length > 0) {
         textSuggestions.add(
           "OpenStreetMap routing cannot block roads; we bias away from alerts. Obey police signs and local closures on the ground.",
