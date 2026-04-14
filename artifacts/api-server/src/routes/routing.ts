@@ -8,7 +8,7 @@ const router: IRouter = Router();
 const OSRM_BASE = process.env["OSRM_BASE_URL"] ?? "https://router.project-osrm.org";
 
 /** Max extra OSRM calls for hazard-avoidance attempts (public OSRM is rate-limited). */
-const MAX_DETOUR_ATTEMPTS = 22;
+const MAX_DETOUR_ATTEMPTS = 90;
 
 const METERS_PER_DEG_LAT = 111_320;
 
@@ -85,12 +85,15 @@ function closestPointOnPolyline(
 /**
  * Places a waypoint offset perpendicular to the road at the nearest point to the hazard,
  * on the side **away** from the incident so OSRM is pushed around the obstruction.
+ * `flipRoadSide` tries the **other** side of the street — essential when one side still
+ * snaps back through the hazard on dense grids.
  */
 function detourWaypointLngLat(
   coords: [number, number][],
   incidentLat: number,
   incidentLng: number,
   offsetMeters: number,
+  flipRoadSide = false,
 ): [number, number] | null {
   if (coords.length < 2 || offsetMeters <= 0) return null;
   const close = closestPointOnPolyline(coords, incidentLat, incidentLng);
@@ -117,12 +120,44 @@ function detourWaypointLngLat(
   const toIncX = ix - cx;
   const toIncY = iy - cy;
   const dot = px * toIncX + py * toIncY;
-  const sign = dot > 0 ? -1 : 1;
+  let sign = dot > 0 ? -1 : 1;
+  if (flipRoadSide) sign *= -1;
 
   const wx = cx + sign * px * offsetMeters;
   const wy = cy + sign * py * offsetMeters;
   const wLat = wy / METERS_PER_DEG_LAT;
   const wLng = wx / metersPerDegLng(wLat);
+  if (!Number.isFinite(wLat) || !Number.isFinite(wLng)) return null;
+  return [wLng, wLat];
+}
+
+/**
+ * Waypoint = incident + offset along a unit vector ⟂ to A→B (two flips = both sides of corridor).
+ * Helps when the pin is between A and B but not snapped onto OSRM’s polyline vertex spacing.
+ */
+function detourWaypointFromChord(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+  incidentLat: number,
+  incidentLng: number,
+  offsetMeters: number,
+  flipRoadSide = false,
+): [number, number] | null {
+  if (offsetMeters <= 0) return null;
+  const vx = (toLng - fromLng) * metersPerDegLng(fromLat);
+  const vy = (toLat - fromLat) * METERS_PER_DEG_LAT;
+  const len = Math.hypot(vx, vy) || 1;
+  const px = -vy / len;
+  const py = vx / len;
+  const ix = (incidentLng - fromLng) * metersPerDegLng(fromLat);
+  const iy = (incidentLat - fromLat) * METERS_PER_DEG_LAT;
+  const sign = flipRoadSide ? -1 : 1;
+  const wx = ix + sign * px * offsetMeters;
+  const wy = iy + sign * py * offsetMeters;
+  const wLat = fromLat + wy / METERS_PER_DEG_LAT;
+  const wLng = fromLng + wx / metersPerDegLng(wLat);
   if (!Number.isFinite(wLat) || !Number.isFinite(wLng)) return null;
   return [wLng, wLat];
 }
@@ -140,6 +175,10 @@ function minDistanceToPolylineMeters(lat: number, lng: number, coords: [number, 
 
 type IncidentRow = typeof incidentsTable.$inferSelect;
 
+function normalizeIncidentType(type: string | null | undefined): string {
+  return (type || "").toLowerCase().trim().replace(/\s+/g, "_");
+}
+
 /**
  * Influence radius around each incident’s point coordinate.
  * Blockages/closures are not pin-sized in real life: one reported point represents a road
@@ -148,7 +187,7 @@ type IncidentRow = typeof incidentsTable.$inferSelect;
  */
 function bufferMeters(inc: { type: string; severity: string }): number {
   const sev = (inc.severity || "medium").toLowerCase();
-  const t = (inc.type || "").toLowerCase();
+  const t = normalizeIncidentType(inc.type);
 
   if (t === "blockage") {
     switch (sev) {
@@ -233,7 +272,7 @@ function conflictWeight(inc: { type: string; severity: string }): number {
     default:
       w += 32;
   }
-  const t = (inc.type || "").toLowerCase();
+  const t = normalizeIncidentType(inc.type);
   if (t === "blockage") w += 30;
   else if (t === "construction") w += 24;
   else if (t === "vip_movement") w += 28;
@@ -281,8 +320,14 @@ function findConflicts(coords: [number, number][], incidents: IncidentRow[]): Co
 
   for (const inc of incidents) {
     const buf = bufferMeters(inc);
-    const t = (inc.type || "").toLowerCase();
-    const useZone = t === "blockage" || t === "construction" || t === "vip_movement";
+    const t = normalizeIncidentType(inc.type);
+    const sev = (inc.severity || "medium").toLowerCase();
+    const useZone =
+      t === "blockage" ||
+      t === "construction" ||
+      t === "vip_movement" ||
+      sev === "critical" ||
+      sev === "high";
 
     const samples = useZone
       ? ZONE_SAMPLE_OFFSETS_M.map(o => offsetLatLng(inc.lat, inc.lng, o.dn, o.de))
@@ -336,7 +381,7 @@ async function fetchOsrmRoutes(
   toLng: number,
 ): Promise<OsrmRoute[]> {
   const path = `${fromLng},${fromLat};${toLng},${toLat}`;
-  const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson&alternatives=true`;
+  const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson&alternatives=3`;
   const res = await fetch(url, { method: "GET" });
   if (!res.ok) {
     throw new Error(`Routing service returned ${res.status}`);
@@ -445,7 +490,7 @@ router.post(
     };
 
     /** Perpendicular detour distance — must be large enough to clear wide blockage zones. */
-    const offsetsM = [450, 700, 950, 1300, 1700, 2200];
+    const offsetsM = [450, 700, 950, 1300, 1700, 2200, 2800];
     const conflictsForDetour = sortConflictsBySeverity(findConflicts(polylineForDetours, incidents));
     const uniqueById = new Map<number, Conflict>();
     for (const c of conflictsForDetour) {
@@ -453,37 +498,63 @@ router.post(
     }
     const topHazards = [...uniqueById.values()].slice(0, 6);
 
-    for (const c of topHazards) {
-      if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+    for (const c of topHazards.slice(0, 4)) {
       for (const off of offsetsM) {
+        for (const flip of [false, true]) {
+          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+          const via = detourWaypointLngLat(polylineForDetours, c.lat, c.lng, off, flip);
+          if (!via) continue;
+          detourAttempts++;
+          const r = await fetchOsrmRouteThroughPoints([
+            [fromLng, fromLat],
+            via,
+            [toLng, toLat],
+          ]);
+          if (r) addDetourRoute(r, `detour_via_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
+        }
         if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-        const via = detourWaypointLngLat(polylineForDetours, c.lat, c.lng, off);
-        if (!via) continue;
-        detourAttempts++;
-        const r = await fetchOsrmRouteThroughPoints([
-          [fromLng, fromLat],
-          via,
-          [toLng, toLat],
-        ]);
-        if (r) addDetourRoute(r, `detour_via_${off}m_incident_${c.id}`);
       }
+      if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+    }
+
+    /** Chord-based vias (pin between A–B may not sit on OSRM vertex spacing). */
+    const chordOffsets = [900, 1500, 2200, 3000];
+    for (const c of topHazards.slice(0, 3)) {
+      for (const off of chordOffsets) {
+        for (const flip of [false, true]) {
+          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+          const via = detourWaypointFromChord(fromLat, fromLng, toLat, toLng, c.lat, c.lng, off, flip);
+          if (!via) continue;
+          detourAttempts++;
+          const r = await fetchOsrmRouteThroughPoints([
+            [fromLng, fromLat],
+            via,
+            [toLng, toLat],
+          ]);
+          if (r) addDetourRoute(r, `detour_chord_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
+        }
+        if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+      }
+      if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
     }
 
     /** Two vias: two worst distinct hazards, ordered along A→B chord. */
     if (detourAttempts < MAX_DETOUR_ATTEMPTS && topHazards.length >= 2) {
       const c0 = topHazards[0]!;
       const c1 = topHazards[1]!;
-      for (const off of [700, 1100, 1600]) {
-        if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-        const v0 = detourWaypointLngLat(polylineForDetours, c0.lat, c0.lng, off);
-        const v1 = detourWaypointLngLat(polylineForDetours, c1.lat, c1.lng, off);
-        if (!v0 || !v1) continue;
-        const p0 = progressAlongChord(fromLat, fromLng, toLat, toLng, v0[1], v0[0]);
-        const p1 = progressAlongChord(fromLat, fromLng, toLat, toLng, v1[1], v1[0]);
-        const ordered = p0 <= p1 ? [v0, v1] : [v1, v0];
-        detourAttempts++;
-        const r = await fetchOsrmRouteThroughPoints([[fromLng, fromLat], ordered[0]!, ordered[1]!, [toLng, toLat]]);
-        if (r) addDetourRoute(r, `detour_2via_${off}m`);
+      for (const off of [800, 1200, 1800]) {
+        for (const sameSide of [false, true]) {
+          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+          const v0 = detourWaypointLngLat(polylineForDetours, c0.lat, c0.lng, off, sameSide);
+          const v1 = detourWaypointLngLat(polylineForDetours, c1.lat, c1.lng, off, sameSide);
+          if (!v0 || !v1) continue;
+          const p0 = progressAlongChord(fromLat, fromLng, toLat, toLng, v0[1], v0[0]);
+          const p1 = progressAlongChord(fromLat, fromLng, toLat, toLng, v1[1], v1[0]);
+          const ordered = p0 <= p1 ? [v0, v1] : [v1, v0];
+          detourAttempts++;
+          const r = await fetchOsrmRouteThroughPoints([[fromLng, fromLat], ordered[0]!, ordered[1]!, [toLng, toLat]]);
+          if (r) addDetourRoute(r, `detour_2via_${off}m`);
+        }
       }
     }
 
