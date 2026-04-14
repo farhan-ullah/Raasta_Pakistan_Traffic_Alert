@@ -1,7 +1,12 @@
-import { useState } from "react";
-import { planRoute, type RoutePlanResponse, type GeocodePlace } from "@workspace/api-client-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  planRoute,
+  currentLocationPlace,
+  type RoutePlanResponse,
+  type GeocodePlace,
+} from "@workspace/api-client-react";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
-import { Navigation2, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Navigation2, ChevronDown, ChevronUp, X, Crosshair } from "lucide-react";
 
 function formatDuration(seconds: number): string {
   const m = Math.round(seconds / 60);
@@ -30,6 +35,44 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<RoutePlanResponse | null>(null);
+  /** User changed point A away from live GPS (search / typing). */
+  const [fromUserEdited, setFromUserEdited] = useState(false);
+  const fromUserEditedRef = useRef(false);
+  const [fromLocating, setFromLocating] = useState(true);
+
+  useEffect(() => {
+    fromUserEditedRef.current = fromUserEdited;
+  }, [fromUserEdited]);
+
+  const loadMyLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setFromLocating(false);
+      return;
+    }
+    setFromLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        if (fromUserEditedRef.current) return;
+        setFromPlace(currentLocationPlace(pos.coords.latitude, pos.coords.longitude));
+        setFromText("Current location");
+        setFromLocating(false);
+      },
+      () => {
+        setFromLocating(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 20_000 },
+    );
+  }, []);
+
+  useEffect(() => {
+    loadMyLocation();
+  }, [loadMyLocation]);
+
+  const useMyLocationAgain = () => {
+    setFromUserEdited(false);
+    fromUserEditedRef.current = false;
+    loadMyLocation();
+  };
 
   const clearRoute = () => {
     setSummary(null);
@@ -39,8 +82,16 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
 
   const runPlan = async () => {
     setError(null);
-    if (!fromPlace || !toPlace) {
-      setError("Choose both places from the suggestions.");
+    if (!toPlace) {
+      setError("Choose destination (point B) from the suggestions.");
+      return;
+    }
+    if (!fromPlace) {
+      setError(
+        fromLocating
+          ? "Getting your location for point A…"
+          : "Allow location access, or search for a start point below.",
+      );
       return;
     }
     setLoading(true);
@@ -63,10 +114,11 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
   };
 
   const rec = summary?.recommended;
+  const canPlan = !!fromPlace && !!toPlace && !loading;
 
   return (
     <div
-      className={`absolute left-3 right-3 z-[600] max-h-[min(320px,42vh)] rounded-2xl border border-white/30 bg-white/95 shadow-xl backdrop-blur-md overflow-hidden ${topClassName}`}
+      className={`absolute left-3 right-3 z-[600] max-h-[min(360px,48vh)] rounded-2xl border border-white/30 bg-white/95 shadow-xl backdrop-blur-md overflow-hidden ${topClassName}`}
     >
       <button
         type="button"
@@ -75,7 +127,7 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
       >
         <span className="flex items-center gap-2 text-sm font-bold text-[#01411C]">
           <Navigation2 className="w-4 h-4 shrink-0" />
-          Route (A → B)
+          Route (you → B)
         </span>
         <span className="flex items-center gap-2 shrink-0">
           {summary ? (
@@ -96,18 +148,39 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
       </button>
 
       {expanded && (
-        <div className="px-3 pb-3 space-y-2 max-h-[260px] overflow-y-auto">
+        <div className="px-3 pb-3 space-y-2 max-h-[280px] overflow-y-auto">
+          <p className="text-[11px] text-gray-600 leading-snug">
+            Point <span className="font-bold text-[#01411C]">A</span> is your{" "}
+            <span className="font-semibold">current location</span>. Search below only if you want a different start.
+          </p>
           <LocationAutocomplete
             value={fromText}
-            onChange={setFromText}
+            onChange={v => {
+              setFromText(v);
+              setFromUserEdited(true);
+              fromUserEditedRef.current = true;
+              setFromPlace(null);
+            }}
             selected={fromPlace}
             onSelect={p => {
+              setFromUserEdited(true);
+              fromUserEditedRef.current = true;
               setFromPlace(p);
               setFromText(p.label);
             }}
-            placeholder="From (point A)"
+            placeholder={fromLocating ? "Locating you…" : "Current location (search to change)"}
             variant="light"
           />
+          {fromUserEdited ? (
+            <button
+              type="button"
+              onClick={useMyLocationAgain}
+              className="flex items-center gap-1.5 text-xs font-semibold text-[#15803d] hover:underline"
+            >
+              <Crosshair className="w-3.5 h-3.5" />
+              Use my current location for A
+            </button>
+          ) : null}
           <LocationAutocomplete
             value={toText}
             onChange={setToText}
@@ -116,14 +189,14 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
               setToPlace(p);
               setToText(p.label);
             }}
-            placeholder="To (point B)"
+            placeholder="To (point B) — search destination"
             variant="light"
           />
           {error ? <p className="text-xs text-red-600">{error}</p> : null}
           <button
             type="button"
             onClick={runPlan}
-            disabled={loading}
+            disabled={loading || !canPlan}
             className="w-full rounded-xl bg-[#15803d] py-2.5 text-sm font-bold text-white disabled:opacity-60"
           >
             {loading ? "Planning…" : "Plan safe route"}

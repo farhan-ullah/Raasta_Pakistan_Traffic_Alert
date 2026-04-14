@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   UIManager,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { type GeocodePlace } from "@workspace/api-client-react";
+import * as Location from "expo-location";
+import { currentLocationPlace, type GeocodePlace } from "@workspace/api-client-react";
 import { planRoute, type RoutePlanResponse } from "@/api/routePlan";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import { useColors } from "@/hooks/useColors";
@@ -37,6 +38,44 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<RoutePlanResponse | null>(null);
+  const [fromUserEdited, setFromUserEdited] = useState(false);
+  const fromUserEditedRef = useRef(false);
+  const [fromLocating, setFromLocating] = useState(true);
+
+  useEffect(() => {
+    fromUserEditedRef.current = fromUserEdited;
+  }, [fromUserEdited]);
+
+  const loadMyLocation = useCallback(async () => {
+    setFromLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setFromLocating(false);
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      if (fromUserEditedRef.current) return;
+      setFromPlace(currentLocationPlace(pos.coords.latitude, pos.coords.longitude));
+      setFromText("Current location");
+    } catch {
+      /* keep fromPlace null until user searches */
+    } finally {
+      setFromLocating(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMyLocation();
+  }, [loadMyLocation]);
+
+  const useMyLocationAgain = () => {
+    setFromUserEdited(false);
+    fromUserEditedRef.current = false;
+    void loadMyLocation();
+  };
 
   const toggle = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -51,8 +90,16 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
 
   const runPlan = async () => {
     setError(null);
-    if (!fromPlace || !toPlace) {
-      setError("Pick both places from the suggestions list.");
+    if (!toPlace) {
+      setError("Choose destination (point B) from the suggestions.");
+      return;
+    }
+    if (!fromPlace) {
+      setError(
+        fromLocating
+          ? "Getting your location for point A…"
+          : "Allow location, or search for a start point.",
+      );
       return;
     }
     setLoading(true);
@@ -79,13 +126,14 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
 
   const rec = summary?.recommended;
   const alt = summary?.recommendedIsAlternative;
+  const canPlan = !!fromPlace && !!toPlace && !loading;
 
   return (
     <View style={[styles.routePlannerWrap, { top: topOffset, backgroundColor: colors.card, borderColor: colors.border }]}>
       <TouchableOpacity style={styles.routePlannerHeader} onPress={toggle} activeOpacity={0.85}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Feather name="navigation-2" size={18} color="#15803d" />
-          <Text style={[styles.routePlannerTitle, { color: colors.text }]}>Route (A → B)</Text>
+          <Text style={[styles.routePlannerTitle, { color: colors.text }]}>Route (you → B)</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           {summary ? (
@@ -98,18 +146,35 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
       </TouchableOpacity>
 
       {expanded ? (
-        <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 260 }} contentContainerStyle={{ paddingBottom: 10 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }} contentContainerStyle={{ paddingBottom: 10 }}>
+          <Text style={{ fontSize: 11, color: colors.subtext, marginHorizontal: 12, marginBottom: 8, lineHeight: 16 }}>
+            Point A is your <Text style={{ fontWeight: "800", color: colors.text }}>current location</Text>. Search only if you want a
+            different start.
+          </Text>
           <View style={{ paddingHorizontal: 12, gap: 8 }}>
             <LocationAutocomplete
               value={fromText}
-              onChange={setFromText}
+              onChange={(v) => {
+                setFromText(v);
+                setFromUserEdited(true);
+                fromUserEditedRef.current = true;
+                setFromPlace(null);
+              }}
               selected={fromPlace}
               onSelect={(p) => {
+                setFromUserEdited(true);
+                fromUserEditedRef.current = true;
                 setFromPlace(p);
                 setFromText(p.label);
               }}
-              placeholder="From (Point A)"
+              placeholder={fromLocating ? "Locating you…" : "Current location (search to change)"}
             />
+            {fromUserEdited ? (
+              <TouchableOpacity onPress={useMyLocationAgain} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Feather name="crosshair" size={14} color="#15803d" />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#15803d" }}>Use my current location for A</Text>
+              </TouchableOpacity>
+            ) : null}
             <LocationAutocomplete
               value={toText}
               onChange={setToText}
@@ -118,7 +183,7 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
                 setToPlace(p);
                 setToText(p.label);
               }}
-              placeholder="To (Point B)"
+              placeholder="To (point B) — search destination"
             />
           </View>
 
@@ -127,9 +192,9 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
           ) : null}
 
           <TouchableOpacity
-            style={[styles.routePlannerGo, loading && { opacity: 0.7 }]}
+            style={[styles.routePlannerGo, (loading || !canPlan) && { opacity: 0.5 }]}
             onPress={runPlan}
-            disabled={loading}
+            disabled={loading || !canPlan}
             activeOpacity={0.9}
           >
             {loading ? (
