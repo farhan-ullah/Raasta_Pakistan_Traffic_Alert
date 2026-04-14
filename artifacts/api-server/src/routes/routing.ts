@@ -8,7 +8,7 @@ const router: IRouter = Router();
 const OSRM_BASE = process.env["OSRM_BASE_URL"] ?? "https://router.project-osrm.org";
 
 /** Max extra OSRM calls for hazard-avoidance attempts (public OSRM is rate-limited). */
-const MAX_DETOUR_ATTEMPTS = 90;
+const MAX_DETOUR_ATTEMPTS = 120;
 
 const METERS_PER_DEG_LAT = 111_320;
 
@@ -160,6 +160,21 @@ function detourWaypointFromChord(
   const wLng = fromLng + wx / metersPerDegLng(wLat);
   if (!Number.isFinite(wLat) || !Number.isFinite(wLng)) return null;
   return [wLng, wLat];
+}
+
+/** Waypoint on a circle around the incident — forces OSRM onto a different corridor than small perpendicular nudges. */
+function radialWaypointLngLat(
+  incidentLat: number,
+  incidentLng: number,
+  radiusM: number,
+  bearingIndex: number,
+  totalBearings: number,
+): [number, number] {
+  const theta = (2 * Math.PI * bearingIndex) / totalBearings;
+  const dn = radiusM * Math.cos(theta);
+  const de = radiusM * Math.sin(theta);
+  const p = offsetLatLng(incidentLat, incidentLng, dn, de);
+  return [p.lng, p.lat];
 }
 
 function minDistanceToPolylineMeters(lat: number, lng: number, coords: [number, number][]): number {
@@ -314,24 +329,39 @@ function offsetLatLng(lat: number, lng: number, dn: number, de: number): { lat: 
   };
 }
 
+function incidentSamplesForClearance(inc: IncidentRow): { lat: number; lng: number }[] {
+  const t = normalizeIncidentType(inc.type);
+  const sev = (inc.severity || "medium").toLowerCase();
+  const useZone =
+    t === "blockage" ||
+    t === "construction" ||
+    t === "vip_movement" ||
+    sev === "critical" ||
+    sev === "high";
+  return useZone
+    ? ZONE_SAMPLE_OFFSETS_M.map(o => offsetLatLng(inc.lat, inc.lng, o.dn, o.de))
+    : [{ lat: inc.lat, lng: inc.lng }];
+}
+
+/** Smallest distance (m) from polyline to any hazard sample — higher = route stays farther from hazards. */
+function minClearanceToIncidents(coords: [number, number][], incidents: IncidentRow[]): number {
+  let minD = Infinity;
+  for (const inc of incidents) {
+    for (const s of incidentSamplesForClearance(inc)) {
+      const d = minDistanceToPolylineMeters(s.lat, s.lng, coords);
+      if (d < minD) minD = d;
+    }
+  }
+  return minD;
+}
+
 function findConflicts(coords: [number, number][], incidents: IncidentRow[]): Conflict[] {
   const out: Conflict[] = [];
   const seen = new Set<number>();
 
   for (const inc of incidents) {
     const buf = bufferMeters(inc);
-    const t = normalizeIncidentType(inc.type);
-    const sev = (inc.severity || "medium").toLowerCase();
-    const useZone =
-      t === "blockage" ||
-      t === "construction" ||
-      t === "vip_movement" ||
-      sev === "critical" ||
-      sev === "high";
-
-    const samples = useZone
-      ? ZONE_SAMPLE_OFFSETS_M.map(o => offsetLatLng(inc.lat, inc.lng, o.dn, o.de))
-      : [{ lat: inc.lat, lng: inc.lng }];
+    const samples = incidentSamplesForClearance(inc);
 
     let hit = false;
     for (const s of samples) {
@@ -460,15 +490,23 @@ router.post(
       return;
     }
 
-    type Analyzed = { route: OsrmRoute; conflicts: Conflict[]; score: number; index: number; source: string };
+    type Analyzed = {
+      route: OsrmRoute;
+      conflicts: Conflict[];
+      score: number;
+      index: number;
+      source: string;
+      clearance: number;
+    };
     const analyzed: Analyzed[] = osrmRoutes.map((r, index) => {
-      const coords = r.geometry.coordinates;
+      const coords = r.geometry.coordinates as [number, number][];
       const conflicts = findConflicts(coords, incidents);
       return {
         index,
         route: r,
         conflicts,
         score: scoreConflicts(conflicts),
+        clearance: minClearanceToIncidents(coords, incidents),
         source: index === 0 ? "osrm_direct" : "osrm_alternative",
       };
     });
@@ -479,12 +517,14 @@ router.post(
     /** Collect extra routes that explicitly avoid hazard coordinates via detour waypoints. */
     let detourAttempts = 0;
     const addDetourRoute = (route: OsrmRoute, source: string) => {
-      const conflicts = findConflicts(route.geometry.coordinates, incidents);
+      const coords = route.geometry.coordinates as [number, number][];
+      const conflicts = findConflicts(coords, incidents);
       analyzed.push({
         index: analyzed.length,
         route,
         conflicts,
         score: scoreConflicts(conflicts),
+        clearance: minClearanceToIncidents(coords, incidents),
         source,
       });
     };
@@ -498,7 +538,7 @@ router.post(
     }
     const topHazards = [...uniqueById.values()].slice(0, 6);
 
-    for (const c of topHazards.slice(0, 4)) {
+    for (const c of topHazards.slice(0, 3)) {
       for (const off of offsetsM) {
         for (const flip of [false, true]) {
           if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
@@ -558,11 +598,29 @@ router.post(
       }
     }
 
+    /** Large radial vias around the worst hazards — small perpendicular offsets often snap back onto the same OSRM edges. */
+    const radialRadiiM = [3500, 5500, 8000];
+    const radialDirections = 8;
+    for (const c of topHazards.slice(0, 2)) {
+      for (const rad of radialRadiiM) {
+        for (let b = 0; b < radialDirections; b++) {
+          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+          const via = radialWaypointLngLat(c.lat, c.lng, rad, b, radialDirections);
+          detourAttempts++;
+          const r = await fetchOsrmRouteThroughPoints([[fromLng, fromLat], via, [toLng, toLat]]);
+          if (r) addDetourRoute(r, `detour_radial_${rad}m_b${b}_inc${c.id}`);
+        }
+        if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+      }
+      if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+    }
+
     const compareAnalyzed = (a: Analyzed, b: Analyzed): number => {
       const na = a.conflicts.length;
       const nb = b.conflicts.length;
       if (na !== nb) return na - nb;
       if (a.score !== b.score) return a.score - b.score;
+      if (a.clearance !== b.clearance) return b.clearance - a.clearance;
       return a.route.duration - b.route.duration;
     };
 
@@ -588,6 +646,11 @@ router.post(
       } else {
         textSuggestions.add("A safer path was selected from alternative driving routes.");
       }
+    }
+    if (best.conflicts.length > 0) {
+      textSuggestions.add(
+        "OpenStreetMap routing cannot block roads; we bias away from alerts. Obey police signs and local closures on the ground.",
+      );
     }
 
     const toSegment = (r: OsrmRoute, conflicts: Conflict[]) => ({
