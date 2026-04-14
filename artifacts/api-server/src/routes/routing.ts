@@ -7,8 +7,22 @@ const router: IRouter = Router();
 
 const OSRM_BASE = process.env["OSRM_BASE_URL"] ?? "https://router.project-osrm.org";
 
-/** Max extra OSRM calls for hazard-avoidance attempts (public OSRM is rate-limited). */
-const MAX_DETOUR_ATTEMPTS = 120;
+/** Cap detour OSRM fetches — too many sequential calls cause nginx 504 upstream timeouts. */
+const MAX_DETOUR_TASKS = Number(process.env["OSRM_MAX_DETOUR_TASKS"] ?? 14);
+/** Run detour requests in parallel batches (still capped by MAX_DETOUR_TASKS). */
+const OSRM_PARALLEL_BATCH = Number(process.env["OSRM_PARALLEL_BATCH"] ?? 4);
+const OSRM_TIMEOUT_INITIAL_MS = Number(process.env["OSRM_TIMEOUT_INITIAL_MS"] ?? 14_000);
+const OSRM_TIMEOUT_VIA_MS = Number(process.env["OSRM_TIMEOUT_VIA_MS"] ?? 8_000);
+
+async function fetchOsrmGet(url: string, timeoutMs: number): Promise<Response> {
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    return await fetch(url, { method: "GET", signal: ac.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 const METERS_PER_DEG_LAT = 111_320;
 
@@ -412,7 +426,12 @@ async function fetchOsrmRoutes(
 ): Promise<OsrmRoute[]> {
   const path = `${fromLng},${fromLat};${toLng},${toLat}`;
   const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson&alternatives=3`;
-  const res = await fetch(url, { method: "GET" });
+  let res: Response;
+  try {
+    res = await fetchOsrmGet(url, OSRM_TIMEOUT_INITIAL_MS);
+  } catch {
+    throw new Error("Routing service timed out or unreachable");
+  }
   if (!res.ok) {
     throw new Error(`Routing service returned ${res.status}`);
   }
@@ -428,7 +447,12 @@ async function fetchOsrmRouteThroughPoints(pointsLngLat: [number, number][]): Pr
   if (pointsLngLat.length < 2) return null;
   const path = pointsLngLat.map(([lng, lat]) => `${lng},${lat}`).join(";");
   const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson`;
-  const res = await fetch(url, { method: "GET" });
+  let res: Response;
+  try {
+    res = await fetchOsrmGet(url, OSRM_TIMEOUT_VIA_MS);
+  } catch {
+    return null;
+  }
   if (!res.ok) return null;
   const data = (await res.json()) as OsrmResponse;
   if (data.code !== "Ok" || !data.routes?.length) return null;
@@ -515,7 +539,6 @@ router.post(
     const polylineForDetours = primary.route.geometry.coordinates as [number, number][];
 
     /** Collect extra routes that explicitly avoid hazard coordinates via detour waypoints. */
-    let detourAttempts = 0;
     const addDetourRoute = (route: OsrmRoute, source: string) => {
       const coords = route.geometry.coordinates as [number, number][];
       const conflicts = findConflicts(coords, incidents);
@@ -529,8 +552,6 @@ router.post(
       });
     };
 
-    /** Perpendicular detour distance — must be large enough to clear wide blockage zones. */
-    const offsetsM = [450, 700, 950, 1300, 1700, 2200, 2800];
     const conflictsForDetour = sortConflictsBySeverity(findConflicts(polylineForDetours, incidents));
     const uniqueById = new Map<number, Conflict>();
     for (const c of conflictsForDetour) {
@@ -538,81 +559,50 @@ router.post(
     }
     const topHazards = [...uniqueById.values()].slice(0, 6);
 
-    for (const c of topHazards.slice(0, 3)) {
-      for (const off of offsetsM) {
-        for (const flip of [false, true]) {
-          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-          const via = detourWaypointLngLat(polylineForDetours, c.lat, c.lng, off, flip);
-          if (!via) continue;
-          detourAttempts++;
-          const r = await fetchOsrmRouteThroughPoints([
-            [fromLng, fromLat],
-            via,
-            [toLng, toLat],
-          ]);
-          if (r) addDetourRoute(r, `detour_via_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
-        }
-        if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-      }
-      if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-    }
+    /**
+     * Few OSRM calls, executed in parallel batches — sequential ~120 calls caused nginx 504.
+     */
+    type DetourTask = { points: [number, number][]; source: string };
+    const detourTasks: DetourTask[] = [];
+    const pushTask = (points: [number, number][], source: string) => {
+      if (detourTasks.length >= MAX_DETOUR_TASKS) return;
+      detourTasks.push({ points, source });
+    };
 
-    /** Chord-based vias (pin between A–B may not sit on OSRM vertex spacing). */
-    const chordOffsets = [900, 1500, 2200, 3000];
-    for (const c of topHazards.slice(0, 3)) {
-      for (const off of chordOffsets) {
-        for (const flip of [false, true]) {
-          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-          const via = detourWaypointFromChord(fromLat, fromLng, toLat, toLng, c.lat, c.lng, off, flip);
-          if (!via) continue;
-          detourAttempts++;
-          const r = await fetchOsrmRouteThroughPoints([
-            [fromLng, fromLat],
-            via,
-            [toLng, toLat],
-          ]);
-          if (r) addDetourRoute(r, `detour_chord_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
-        }
-        if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-      }
-      if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-    }
-
-    /** Two vias: two worst distinct hazards, ordered along A→B chord. */
-    if (detourAttempts < MAX_DETOUR_ATTEMPTS && topHazards.length >= 2) {
-      const c0 = topHazards[0]!;
-      const c1 = topHazards[1]!;
-      for (const off of [800, 1200, 1800]) {
-        for (const sameSide of [false, true]) {
-          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-          const v0 = detourWaypointLngLat(polylineForDetours, c0.lat, c0.lng, off, sameSide);
-          const v1 = detourWaypointLngLat(polylineForDetours, c1.lat, c1.lng, off, sameSide);
-          if (!v0 || !v1) continue;
-          const p0 = progressAlongChord(fromLat, fromLng, toLat, toLng, v0[1], v0[0]);
-          const p1 = progressAlongChord(fromLat, fromLng, toLat, toLng, v1[1], v1[0]);
-          const ordered = p0 <= p1 ? [v0, v1] : [v1, v0];
-          detourAttempts++;
-          const r = await fetchOsrmRouteThroughPoints([[fromLng, fromLat], ordered[0]!, ordered[1]!, [toLng, toLat]]);
-          if (r) addDetourRoute(r, `detour_2via_${off}m`);
-        }
-      }
-    }
-
-    /** Large radial vias around the worst hazards — small perpendicular offsets often snap back onto the same OSRM edges. */
-    const radialRadiiM = [3500, 5500, 8000];
-    const radialDirections = 8;
+    const polyOffsetsM = [800, 1800];
     for (const c of topHazards.slice(0, 2)) {
-      for (const rad of radialRadiiM) {
-        for (let b = 0; b < radialDirections; b++) {
-          if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
-          const via = radialWaypointLngLat(c.lat, c.lng, rad, b, radialDirections);
-          detourAttempts++;
-          const r = await fetchOsrmRouteThroughPoints([[fromLng, fromLat], via, [toLng, toLat]]);
-          if (r) addDetourRoute(r, `detour_radial_${rad}m_b${b}_inc${c.id}`);
+      for (const off of polyOffsetsM) {
+        for (const flip of [false, true]) {
+          const via = detourWaypointLngLat(polylineForDetours, c.lat, c.lng, off, flip);
+          if (via) pushTask([[fromLng, fromLat], via, [toLng, toLat]], `detour_via_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
         }
-        if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
       }
-      if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
+    }
+
+    const chordOffM = [2000];
+    for (const c of topHazards.slice(0, 2)) {
+      for (const off of chordOffM) {
+        for (const flip of [false, true]) {
+          const via = detourWaypointFromChord(fromLat, fromLng, toLat, toLng, c.lat, c.lng, off, flip);
+          if (via) pushTask([[fromLng, fromLat], via, [toLng, toLat]], `detour_chord_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
+        }
+      }
+    }
+
+    const c0 = topHazards[0];
+    if (c0) {
+      const viaA = radialWaypointLngLat(c0.lat, c0.lng, 4500, 0, 8);
+      pushTask([[fromLng, fromLat], viaA, [toLng, toLat]], `detour_radial_4500m_b0_inc${c0.id}`);
+      const viaB = radialWaypointLngLat(c0.lat, c0.lng, 7500, 4, 8);
+      pushTask([[fromLng, fromLat], viaB, [toLng, toLat]], `detour_radial_7500m_b4_inc${c0.id}`);
+    }
+
+    for (let i = 0; i < detourTasks.length; i += OSRM_PARALLEL_BATCH) {
+      const batch = detourTasks.slice(i, i + OSRM_PARALLEL_BATCH);
+      const results = await Promise.all(batch.map(t => fetchOsrmRouteThroughPoints(t.points)));
+      results.forEach((r, j) => {
+        if (r) addDetourRoute(r, batch[j]!.source);
+      });
     }
 
     const compareAnalyzed = (a: Analyzed, b: Analyzed): number => {
