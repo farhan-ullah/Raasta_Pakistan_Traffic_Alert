@@ -439,9 +439,10 @@ router.post(
       conflicts,
     });
 
-    const orsRoute = await fetchOrsRouteWithAvoidPolygons(fromLat, fromLng, toLat, toLng, incidents).catch(
-      () => null,
-    );
+    const orsRoute = await fetchOrsRouteWithAvoidPolygons(fromLat, fromLng, toLat, toLng, incidents).catch(err => {
+      console.warn("[ORS] fetchOrsRouteWithAvoidPolygons threw:", err instanceof Error ? err.message : err);
+      return null;
+    });
 
     if (orsRoute) {
       let osrmRoutes: OsrmRoute[];

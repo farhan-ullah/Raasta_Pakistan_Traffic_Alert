@@ -8,8 +8,11 @@ import type { incidentsTable } from "@workspace/db";
 import { normalizeIncidentType, orsAvoidRadiusMeters } from "./incident-zones";
 
 const ORS_BASE = process.env["OPENROUTESERVICE_BASE_URL"]?.replace(/\/+$/, "") ?? "https://api.openrouteservice.org";
-const ORS_KEY = process.env["OPENROUTESERVICE_API_KEY"]?.trim();
 const ORS_TIMEOUT_MS = Number(process.env["OPENROUTESERVICE_TIMEOUT_MS"] ?? 25_000);
+
+function orsApiKey(): string | undefined {
+  return process.env["OPENROUTESERVICE_API_KEY"]?.trim();
+}
 /** Max hazard circles to send (ORS request size / solver limits). */
 const MAX_AVOID_POLYGONS = Number(process.env["ORS_MAX_AVOID_POLYGONS"] ?? 8);
 
@@ -72,7 +75,7 @@ function buildAvoidMultiPolygon(incidents: IncidentRow[]): AvoidMultiPolygon | n
   return { type: "MultiPolygon", coordinates };
 }
 
-async function orsPost(path: string, body: unknown): Promise<Response> {
+async function orsPost(path: string, body: unknown, apiKey: string): Promise<Response> {
   const url = `${ORS_BASE}${path}`;
   const ac = new AbortController();
   const id = setTimeout(() => ac.abort(), ORS_TIMEOUT_MS);
@@ -81,7 +84,7 @@ async function orsPost(path: string, body: unknown): Promise<Response> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${ORS_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
       signal: ac.signal,
@@ -104,7 +107,8 @@ export async function fetchOrsRouteWithAvoidPolygons(
   toLng: number,
   incidents: IncidentRow[],
 ): Promise<OsrmCompatibleRoute | null> {
-  if (!ORS_KEY) return null;
+  const apiKey = orsApiKey();
+  if (!apiKey) return null;
 
   const avoid = buildAvoidMultiPolygon(incidents);
   const baseBody: {
@@ -125,11 +129,11 @@ export async function fetchOrsRouteWithAvoidPolygons(
   }
 
   /** Prefer GeoJSON endpoint — returns LineString coordinates (no encoded polyline ambiguity). */
-  let res = await orsPost("/v2/directions/driving-car/geojson", baseBody);
+  let res = await orsPost("/v2/directions/driving-car/geojson", baseBody, apiKey);
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
     console.warn("[ORS] GeoJSON directions failed, trying default endpoint:", res.status, errText.slice(0, 300));
-    res = await orsPost("/v2/directions/driving-car", { ...baseBody, geometry: true });
+    res = await orsPost("/v2/directions/driving-car", { ...baseBody, geometry: true }, apiKey);
   }
 
   if (!res.ok) {
@@ -142,10 +146,20 @@ export async function fetchOrsRouteWithAvoidPolygons(
     return null;
   }
 
-  const raw = (await res.json()) as unknown;
+  let raw: unknown;
+  try {
+    raw = await res.json();
+  } catch (e) {
+    console.warn("[ORS] Response was not JSON:", e);
+    return null;
+  }
   const parsed = parseOrsDirectionsJson(raw);
   if (!parsed) {
-    console.warn("[ORS] Could not parse route geometry from response");
+    const snippet =
+      typeof raw === "object" && raw !== null
+        ? JSON.stringify(raw).slice(0, 900)
+        : String(raw).slice(0, 200);
+    console.warn("[ORS] Could not parse route geometry. Response snippet:", snippet);
     return null;
   }
   return parsed;
@@ -162,11 +176,41 @@ type OrsRoutesEnvelope = {
 type OrsGeoJsonFc = {
   type?: string;
   features?: Array<{
-    geometry?: { type?: string; coordinates?: [number, number][] };
+    geometry?: { type?: string; coordinates?: unknown };
     properties?: { summary?: { distance?: number; duration?: number } };
   }>;
   error?: { message?: string };
 };
+
+/** Normalize ORS GeoJSON coords (2D or 3D points; MultiLineString → one LineString). */
+function lineStringCoordsFromOrsGeometry(geom: { type?: string; coordinates?: unknown } | undefined): [number, number][] | undefined {
+  if (!geom?.coordinates) return undefined;
+  const t = geom.type?.toLowerCase();
+  if (t === "linestring") {
+    return normalizeCoordRing(geom.coordinates as unknown[]);
+  }
+  if (t === "multilinestring" && Array.isArray(geom.coordinates)) {
+    const out: [number, number][] = [];
+    for (const ring of geom.coordinates as unknown[]) {
+      if (Array.isArray(ring)) {
+        const part = normalizeCoordRing(ring as unknown[]);
+        if (part.length) out.push(...part);
+      }
+    }
+    return out.length ? out : undefined;
+  }
+  return undefined;
+}
+
+function normalizeCoordRing(ring: unknown[]): [number, number][] {
+  const out: [number, number][] = [];
+  for (const p of ring) {
+    if (Array.isArray(p) && p.length >= 2 && typeof p[0] === "number" && typeof p[1] === "number") {
+      out.push([p[0], p[1]]);
+    }
+  }
+  return out;
+}
 
 function parseOrsDirectionsJson(raw: unknown): OsrmCompatibleRoute | null {
   if (!raw || typeof raw !== "object") return null;
@@ -177,11 +221,18 @@ function parseOrsDirectionsJson(raw: unknown): OsrmCompatibleRoute | null {
     return null;
   }
 
-  if (data.type === "FeatureCollection" && Array.isArray(data.features) && data.features.length > 0) {
-    const feat =
-      data.features.find(f => f.geometry?.type === "LineString" && f.geometry.coordinates?.length) ?? data.features[0];
-    const coords = feat?.geometry?.coordinates;
-    const summary = feat?.properties?.summary;
+  const isFc =
+    (data as { type?: string }).type?.toLowerCase() === "featurecollection" ||
+    (Array.isArray(data.features) && data.features.length > 0);
+
+  if (isFc && Array.isArray(data.features) && data.features.length > 0) {
+    const lineFeat =
+      data.features.find(f => {
+        const gt = f.geometry?.type?.toLowerCase();
+        return gt === "linestring" || gt === "multilinestring";
+      }) ?? data.features[0];
+    const coords = lineFeat?.geometry ? lineStringCoordsFromOrsGeometry(lineFeat.geometry) : undefined;
+    const summary = lineFeat?.properties?.summary;
     if (coords?.length) {
       return {
         geometry: { type: "LineString", coordinates: coords },
@@ -200,12 +251,16 @@ function parseOrsDirectionsJson(raw: unknown): OsrmCompatibleRoute | null {
 
   const geom = route.geometry as unknown;
   let coords: [number, number][] | undefined;
-  if (geom && typeof geom === "object" && geom !== null && "coordinates" in geom) {
+  if (geom && typeof geom === "object" && geom !== null && "type" in geom && "coordinates" in geom) {
+    coords = lineStringCoordsFromOrsGeometry(geom as { type?: string; coordinates?: unknown });
+  }
+  if (!coords?.length && geom && typeof geom === "object" && geom !== null && "coordinates" in geom) {
     const c = (geom as { coordinates: unknown }).coordinates;
-    if (Array.isArray(c) && c.length && Array.isArray(c[0])) {
-      coords = c as [number, number][];
+    if (Array.isArray(c) && c.length) {
+      coords = normalizeCoordRing(c as unknown[]);
     }
-  } else if (typeof geom === "string" && geom.length > 0) {
+  }
+  if (!coords?.length && typeof geom === "string" && geom.length > 0) {
     coords = decodeGooglePolylineLngLat(geom);
   }
   if (!coords?.length) return null;
