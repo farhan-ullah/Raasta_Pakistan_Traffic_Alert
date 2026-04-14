@@ -1,6 +1,15 @@
-import { useState, useEffect, useRef } from "react";
-import { useGetActiveMapIncidents, useListOffers } from "@workspace/api-client-react";
+import { useState, useEffect } from "react";
+import {
+  useGetActiveMapIncidents,
+  useGetFeaturedOffers,
+  useListOffers,
+  getGetActiveMapIncidentsQueryKey,
+  getListOffersQueryKey,
+  getGetFeaturedOffersQueryKey,
+  type RoutePlanResponse,
+} from "@workspace/api-client-react";
 import { LiveMap } from "@/components/map";
+import { RoutePlannerCard } from "@/components/RoutePlannerCard";
 import { AlertTriangle, Tag, ShieldAlert, Store, Radio } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,16 +23,21 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [secondsAgo, setSecondsAgo] = useState(0);
   const [tickerIdx, setTickerIdx] = useState(0);
+  const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
 
   const { data: incidentsRaw, dataUpdatedAt } = useGetActiveMapIncidents({
-    query: { refetchInterval: REFETCH_MS },
+    query: { queryKey: getGetActiveMapIncidentsQueryKey(), refetchInterval: REFETCH_MS },
   });
-  const { data: offersRaw } = useListOffers({
-    query: { refetchInterval: REFETCH_MS },
+  const { data: offersRaw } = useListOffers(undefined, {
+    query: { queryKey: getListOffersQueryKey(undefined), refetchInterval: REFETCH_MS },
+  });
+  const { data: featuredRaw } = useGetFeaturedOffers({
+    query: { queryKey: getGetFeaturedOffersQueryKey(), refetchInterval: REFETCH_MS },
   });
 
   const incidents = Array.isArray(incidentsRaw) ? incidentsRaw : [];
   const offers = Array.isArray(offersRaw) ? offersRaw : [];
+  const featured = Array.isArray(featuredRaw) ? featuredRaw : [];
 
   useEffect(() => {
     if (dataUpdatedAt) setLastUpdated(new Date(dataUpdatedAt));
@@ -101,10 +115,12 @@ export default function Home() {
 
       {/* Live map fills all space between header and featured offers */}
       <div className="relative w-full flex-1 min-h-0 flex flex-col">
+        <RoutePlannerCard onRoutePlanned={setRoutePlan} />
         <LiveMap
           incidents={incidents}
           offers={offers}
           lastUpdated={lastUpdated}
+          routePlan={routePlan}
           className="flex-1 w-full min-h-0"
         />
 
@@ -135,7 +151,7 @@ export default function Home() {
         <div className="px-4 flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
             <Tag className="h-4 w-4 text-[#01411C]" />
-            Featured Nearby Offers
+            Exclusive &amp; featured offers
           </h2>
           <Link href="/offers" className="text-xs text-[#01411C] font-semibold hover:underline">
             View all →
@@ -144,7 +160,7 @@ export default function Home() {
 
         <ScrollArea className="w-full whitespace-nowrap">
           <div className="flex w-max space-x-3 px-4 pb-1">
-            {offers.slice(0, 5).map((offer) => (
+            {(featured.length > 0 ? featured : offers).slice(0, 5).map((offer) => (
               <Link key={offer.id} href={`/offers/${offer.id}`}>
                 <Card className="w-[210px] shrink-0 cursor-pointer border-0 shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                   <div className="h-20 bg-gradient-to-br from-[#01411C] to-[#025a28] relative flex items-center justify-center">

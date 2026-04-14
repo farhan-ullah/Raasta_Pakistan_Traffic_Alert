@@ -21,6 +21,8 @@ export const merchantsTable = pgTable("merchants", {
   isVerified: boolean("is_verified").default(false),
   isOpen: boolean("is_open").default(true),
   openHours: text("open_hours"),
+  /** Secret key for merchant portal — create/manage offers. Shown once when merchant is created. */
+  portalAccessKey: text("portal_access_key").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -107,7 +107,12 @@ router.get("/offers", async (req, res): Promise<void> => {
 });
 
 router.post("/offers", async (req, res): Promise<void> => {
-  const parsed = CreateOfferBody.safeParse(req.body);
+  const raw = req.body as Record<string, unknown>;
+  const portalAccessKey = typeof raw["portalAccessKey"] === "string" ? raw["portalAccessKey"].trim() : "";
+  const body = { ...raw };
+  delete body["portalAccessKey"];
+
+  const parsed = CreateOfferBody.safeParse(body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -116,6 +121,12 @@ router.post("/offers", async (req, res): Promise<void> => {
   const merchantId = parseInt(parsed.data.merchantId, 10);
   if (isNaN(merchantId)) {
     res.status(400).json({ error: "Invalid merchantId" });
+    return;
+  }
+
+  const [merchant] = await db.select().from(merchantsTable).where(eq(merchantsTable.id, merchantId));
+  if (!merchant?.portalAccessKey || merchant.portalAccessKey !== portalAccessKey) {
+    res.status(403).json({ error: "Valid portalAccessKey required for this merchant" });
     return;
   }
 
@@ -166,9 +177,25 @@ router.patch("/offers/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const parsed = UpdateOfferBody.safeParse(req.body);
+  const raw = req.body as Record<string, unknown>;
+  const portalAccessKey = typeof raw["portalAccessKey"] === "string" ? raw["portalAccessKey"].trim() : "";
+  const body = { ...raw };
+  delete body["portalAccessKey"];
+
+  const parsed = UpdateOfferBody.safeParse(body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(offersTable).where(eq(offersTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "Offer not found" });
+    return;
+  }
+  const [m] = await db.select().from(merchantsTable).where(eq(merchantsTable.id, existing.merchantId));
+  if (!m?.portalAccessKey || m.portalAccessKey !== portalAccessKey) {
+    res.status(403).json({ error: "Valid portalAccessKey required for this merchant" });
     return;
   }
 

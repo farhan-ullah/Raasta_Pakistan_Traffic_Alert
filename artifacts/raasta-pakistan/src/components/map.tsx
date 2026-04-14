@@ -6,11 +6,13 @@ import {
   Popup,
   Circle,
   CircleMarker,
+  Polyline,
+  useMap,
 } from "react-leaflet";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import type { MapIncident, Offer } from "@workspace/api-client-react";
+import type { MapIncident, Offer, RoutePlanResponse } from "@workspace/api-client-react";
 import { Navigation } from "lucide-react";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -117,6 +119,20 @@ const createOfferIcon = () => {
   });
 };
 
+function FitRouteBounds({ latLngs }: { latLngs: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (latLngs.length < 2) return;
+    const bounds = L.latLngBounds(latLngs);
+    map.fitBounds(bounds, { padding: [44, 44], maxZoom: 15 });
+  }, [map, latLngs]);
+  return null;
+}
+
+function lineToLeaflet(coords: [number, number][]): [number, number][] {
+  return coords.map(([lng, lat]) => [lat, lng] as [number, number]);
+}
+
 interface MapProps {
   incidents?: MapIncident[];
   offers?: Offer[];
@@ -124,6 +140,7 @@ interface MapProps {
   zoom?: number;
   className?: string;
   lastUpdated?: Date;
+  routePlan?: RoutePlanResponse | null;
 }
 
 const ISLAMABAD: [number, number] = [33.6844, 73.0479];
@@ -135,6 +152,7 @@ export function LiveMap({
   zoom = 12,
   className = "w-full flex-1 min-h-[200px] z-0",
   lastUpdated,
+  routePlan = null,
 }: MapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
@@ -212,6 +230,15 @@ export function LiveMap({
     );
   }, []);
 
+  const recCoords = routePlan?.recommended.geometry.coordinates as [number, number][] | undefined;
+  const recLatLng = recCoords ? lineToLeaflet(recCoords) : [];
+  const primaryLatLng =
+    routePlan?.recommendedIsAlternative && routePlan.primary.geometry.coordinates
+      ? lineToLeaflet(routePlan.primary.geometry.coordinates as [number, number][])
+      : [];
+  const abStart = recLatLng[0];
+  const abEnd = recLatLng.length > 1 ? recLatLng[recLatLng.length - 1] : undefined;
+
   return (
     <div ref={containerRef} className={`relative flex flex-col w-full min-h-0 h-full ${className}`}>
       <MapContainer
@@ -226,6 +253,25 @@ export function LiveMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {recLatLng.length > 1 ? <FitRouteBounds latLngs={recLatLng} /> : null}
+
+        {primaryLatLng.length > 1 ? (
+          <Polyline
+            positions={primaryLatLng}
+            pathOptions={{ color: "#94a3b8", weight: 4, opacity: 0.75, dashArray: "6 10" }}
+          />
+        ) : null}
+        {recLatLng.length > 1 ? (
+          <Polyline positions={recLatLng} pathOptions={{ color: "#15803d", weight: 5, opacity: 1 }} />
+        ) : null}
+
+        {abStart ? (
+          <CircleMarker center={abStart} radius={8} pathOptions={{ color: "#fff", weight: 2, fillColor: "#15803d", fillOpacity: 1 }} />
+        ) : null}
+        {abEnd ? (
+          <CircleMarker center={abEnd} radius={8} pathOptions={{ color: "#fff", weight: 2, fillColor: "#b91c1c", fillOpacity: 1 }} />
+        ) : null}
 
         {userPos && accuracyM != null && accuracyM < 1200 && (
           <Circle

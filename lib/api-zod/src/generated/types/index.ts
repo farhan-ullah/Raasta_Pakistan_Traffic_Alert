@@ -36,6 +36,8 @@ export * from "./listOffersParams";
 export * from "./mapIncident";
 export * from "./merchant";
 export * from "./merchantCategory";
+export * from "./merchantPortalSession";
+export * from "./merchantPortalVerifyRequest";
 export * from "./offer";
 export * from "./offerStats";
 export * from "./offerStatsRedemptionsByDayItem";

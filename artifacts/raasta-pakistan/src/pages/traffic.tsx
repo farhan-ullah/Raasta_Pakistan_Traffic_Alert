@@ -1,4 +1,4 @@
-import { useListIncidents } from "@workspace/api-client-react";
+import { useListIncidents, getListIncidentsQueryKey } from "@workspace/api-client-react";
 import { AlertTriangle, Clock, MapPin, ShieldAlert, ArrowRight, Construction, Car, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,10 +41,10 @@ const getSeverityColor = (severity: string) => {
 
 export default function Traffic() {
   const [filter, setFilter] = useState<string>("all");
-  const { data: incidentsRaw, isLoading, dataUpdatedAt } = useListIncidents(
-    { status: "active", type: filter !== "all" ? filter as any : undefined },
-    { query: { refetchInterval: 15_000 } }
-  );
+  const listParams = { status: "active" as const, type: filter !== "all" ? (filter as any) : undefined };
+  const { data: incidentsRaw, isLoading, dataUpdatedAt } = useListIncidents(listParams, {
+    query: { queryKey: getListIncidentsQueryKey(listParams), refetchInterval: 15_000 },
+  });
   const incidents = Array.isArray(incidentsRaw) ? incidentsRaw : [];
   const [secondsAgo, setSecondsAgo] = useState(0);
   const lastUpdated = useRef<Date>(new Date());

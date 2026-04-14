@@ -33,6 +33,8 @@ import type {
   ListOffersParams,
   MapIncident,
   Merchant,
+  MerchantPortalSession,
+  MerchantPortalVerifyRequest,
   Offer,
   OfferStats,
   RedeemOfferBody,
@@ -1483,6 +1485,93 @@ export const useCreateMerchant = <
   TContext
 > => {
   return useMutation(getCreateMerchantMutationOptions(options));
+};
+
+/**
+ * @summary Verify merchant portal access key
+ */
+export const getVerifyMerchantPortalUrl = () => {
+  return `/api/merchants/portal/verify`;
+};
+
+export const verifyMerchantPortal = async (
+  merchantPortalVerifyRequest: MerchantPortalVerifyRequest,
+  options?: RequestInit,
+): Promise<MerchantPortalSession> => {
+  return customFetch<MerchantPortalSession>(getVerifyMerchantPortalUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(merchantPortalVerifyRequest),
+  });
+};
+
+export const getVerifyMerchantPortalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyMerchantPortal>>,
+    TError,
+    { data: BodyType<MerchantPortalVerifyRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyMerchantPortal>>,
+  TError,
+  { data: BodyType<MerchantPortalVerifyRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyMerchantPortal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyMerchantPortal>>,
+    { data: BodyType<MerchantPortalVerifyRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyMerchantPortal(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyMerchantPortalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyMerchantPortal>>
+>;
+export type VerifyMerchantPortalMutationBody =
+  BodyType<MerchantPortalVerifyRequest>;
+export type VerifyMerchantPortalMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify merchant portal access key
+ */
+export const useVerifyMerchantPortal = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyMerchantPortal>>,
+    TError,
+    { data: BodyType<MerchantPortalVerifyRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyMerchantPortal>>,
+  TError,
+  { data: BodyType<MerchantPortalVerifyRequest> },
+  TContext
+> => {
+  return useMutation(getVerifyMerchantPortalMutationOptions(options));
 };
 
 /**

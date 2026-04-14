@@ -192,6 +192,8 @@ export interface CreateOfferBody {
   validUntil?: string;
   maxRedemptions?: number;
   tags?: string[];
+  /** Secret key for this merchant (required to create an offer) */
+  portalAccessKey: string;
 }
 
 export interface UpdateOfferBody {
@@ -202,6 +204,19 @@ export interface UpdateOfferBody {
   isActive?: boolean;
   validUntil?: string;
   maxRedemptions?: number;
+  /** Merchant portal secret required to update this offer */
+  portalAccessKey: string;
+}
+
+export interface MerchantPortalVerifyRequest {
+  accessKey: string;
+}
+
+export interface MerchantPortalSession {
+  merchantId: string;
+  name: string;
+  category: string;
+  address: string;
 }
 
 export interface RedeemOfferBody {
@@ -275,6 +290,8 @@ export interface Merchant {
   openHours?: string;
   activeOffersCount?: number;
   totalRedemptions?: number;
+  /** Returned only once when the merchant is first registered — save it to manage offers */
+  portalAccessKey?: string;
   createdAt: string;
 }
 

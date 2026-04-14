@@ -1,5 +1,10 @@
 import { useParams, Link } from "wouter";
-import { useGetMerchant, useGetMerchantOffers } from "@workspace/api-client-react";
+import {
+  useGetMerchant,
+  useGetMerchantOffers,
+  getGetMerchantQueryKey,
+  getGetMerchantOffersQueryKey,
+} from "@workspace/api-client-react";
 import { ArrowLeft, MapPin, Phone, Mail, Star, Clock, Tag, Store, UtensilsCrossed, Coffee, Pill, Scissors, ShoppingBag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,8 +20,18 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 
 export default function MerchantProfile() {
   const { id } = useParams<{ id: string }>();
-  const { data: merchant, isLoading: loadingMerchant } = useGetMerchant(id!, { query: { enabled: !!id } });
-  const { data: offers } = useGetMerchantOffers(id!, { query: { enabled: !!id } });
+  const { data: merchant, isLoading: loadingMerchant } = useGetMerchant(id ?? "", {
+    query: {
+      enabled: !!id,
+      queryKey: id ? getGetMerchantQueryKey(id) : (["merchants", "disabled"] as const),
+    },
+  });
+  const { data: offers } = useGetMerchantOffers(id ?? "", {
+    query: {
+      enabled: !!id,
+      queryKey: id ? getGetMerchantOffersQueryKey(id) : (["merchants", "offers", "disabled"] as const),
+    },
+  });
 
   if (loadingMerchant) {
     return (

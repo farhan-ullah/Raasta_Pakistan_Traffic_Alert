@@ -349,6 +349,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/Merchant"
 
+  /merchants/portal/verify:
+    post:
+      operationId: verifyMerchantPortal
+      tags: [merchants]
+      summary: Verify merchant portal access key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MerchantPortalVerifyRequest"
+      responses:
+        "200":
+          description: Merchant identity for portal session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchantPortalSession"
+        "400":
+          description: Missing access key
+        "401":
+          description: Invalid access key
+
   /merchants/{id}:
     get:
       operationId: getMerchant
@@ -786,7 +809,10 @@ components:
           type: array
           items:
             type: string
-      required: [merchantId, title, description]
+        portalAccessKey:
+          type: string
+          description: Secret key for this merchant (required to create an offer)
+      required: [merchantId, title, description, portalAccessKey]
 
     UpdateOfferBody:
       type: object
@@ -806,6 +832,30 @@ components:
           format: date-time
         maxRedemptions:
           type: integer
+        portalAccessKey:
+          type: string
+          description: Merchant portal secret required to update this offer
+      required: [portalAccessKey]
+
+    MerchantPortalVerifyRequest:
+      type: object
+      required: [accessKey]
+      properties:
+        accessKey:
+          type: string
+
+    MerchantPortalSession:
+      type: object
+      required: [merchantId, name, category, address]
+      properties:
+        merchantId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        address:
+          type: string
 
     RedeemOfferBody:
       type: object
@@ -900,6 +950,9 @@ components:
           type: integer
         totalRedemptions:
           type: integer
+        portalAccessKey:
+          type: string
+          description: Returned only once when the merchant is first registered — save it to manage offers
         createdAt:
           type: string
           format: date-time

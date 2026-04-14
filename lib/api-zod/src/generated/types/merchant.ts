@@ -28,5 +28,7 @@ export interface Merchant {
   openHours?: string;
   activeOffersCount?: number;
   totalRedemptions?: number;
+  /** Returned only once when the merchant is first registered — save it to manage offers */
+  portalAccessKey?: string;
   createdAt: Date;
 }

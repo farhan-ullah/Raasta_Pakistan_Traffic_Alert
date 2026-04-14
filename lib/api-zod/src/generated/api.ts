@@ -255,6 +255,9 @@ export const CreateOfferBody = zod.object({
   validUntil: zod.coerce.date().optional(),
   maxRedemptions: zod.number().optional(),
   tags: zod.array(zod.string()).optional(),
+  portalAccessKey: zod
+    .string()
+    .describe("Secret key for this merchant (required to create an offer)"),
 });
 
 /**
@@ -306,6 +309,9 @@ export const UpdateOfferBody = zod.object({
   isActive: zod.boolean().optional(),
   validUntil: zod.coerce.date().optional(),
   maxRedemptions: zod.number().optional(),
+  portalAccessKey: zod
+    .string()
+    .describe("Merchant portal secret required to update this offer"),
 });
 
 export const UpdateOfferResponse = zod.object({
@@ -463,6 +469,12 @@ export const ListMerchantsResponseItem = zod.object({
   openHours: zod.string().optional(),
   activeOffersCount: zod.number().optional(),
   totalRedemptions: zod.number().optional(),
+  portalAccessKey: zod
+    .string()
+    .optional()
+    .describe(
+      "Returned only once when the merchant is first registered — save it to manage offers",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListMerchantsResponse = zod.array(ListMerchantsResponseItem);
@@ -497,6 +509,20 @@ export const CreateMerchantBody = zod.object({
   logoUrl: zod.string().optional(),
   coverUrl: zod.string().optional(),
   openHours: zod.string().optional(),
+});
+
+/**
+ * @summary Verify merchant portal access key
+ */
+export const VerifyMerchantPortalBody = zod.object({
+  accessKey: zod.string(),
+});
+
+export const VerifyMerchantPortalResponse = zod.object({
+  merchantId: zod.string(),
+  name: zod.string(),
+  category: zod.string(),
+  address: zod.string(),
 });
 
 /**
@@ -540,6 +566,12 @@ export const GetMerchantResponse = zod.object({
   openHours: zod.string().optional(),
   activeOffersCount: zod.number().optional(),
   totalRedemptions: zod.number().optional(),
+  portalAccessKey: zod
+    .string()
+    .optional()
+    .describe(
+      "Returned only once when the merchant is first registered — save it to manage offers",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -596,6 +628,12 @@ export const UpdateMerchantResponse = zod.object({
   openHours: zod.string().optional(),
   activeOffersCount: zod.number().optional(),
   totalRedemptions: zod.number().optional(),
+  portalAccessKey: zod
+    .string()
+    .optional()
+    .describe(
+      "Returned only once when the merchant is first registered — save it to manage offers",
+    ),
   createdAt: zod.coerce.date(),
 });
 

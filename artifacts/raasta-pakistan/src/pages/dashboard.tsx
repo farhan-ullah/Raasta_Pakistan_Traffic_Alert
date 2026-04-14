@@ -1,4 +1,9 @@
-import { useGetDashboardSummary, useGetRecentActivity } from "@workspace/api-client-react";
+import {
+  useGetDashboardSummary,
+  useGetRecentActivity,
+  getGetDashboardSummaryQueryKey,
+  getGetRecentActivityQueryKey,
+} from "@workspace/api-client-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Activity, AlertTriangle, CheckCircle, Store, Tag, ShieldAlert, Clock, Navigation } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,8 +35,12 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 }
 
 export default function Dashboard() {
-  const { data: summary, isLoading } = useGetDashboardSummary({ query: { refetchInterval: 20_000 } });
-  const { data: activitiesRaw } = useGetRecentActivity({ query: { refetchInterval: 20_000 } });
+  const { data: summary, isLoading } = useGetDashboardSummary({
+    query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 20_000 },
+  });
+  const { data: activitiesRaw } = useGetRecentActivity({
+    query: { queryKey: getGetRecentActivityQueryKey(), refetchInterval: 20_000 },
+  });
   const activities = Array.isArray(activitiesRaw) ? activitiesRaw : [];
 
   const getActivityIcon = (type: string) => {
@@ -71,8 +80,8 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               <StatCard icon={AlertTriangle} label="Active Incidents" value={summary.activeIncidents} color="bg-red-500" />
               <StatCard icon={CheckCircle} label="Resolved Today" value={summary.resolvedToday} color="bg-green-600" />
-              <StatCard icon={ShieldAlert} label="Critical Alerts" value={summary.criticalAlerts} color="bg-orange-500" />
-              <StatCard icon={Navigation} label="Affected Roads" value={summary.affectedRoads} color="bg-amber-500" />
+              <StatCard icon={ShieldAlert} label="Critical Alerts" value={summary.criticalAlerts ?? 0} color="bg-orange-500" />
+              <StatCard icon={Navigation} label="Affected Roads" value={summary.affectedRoads ?? 0} color="bg-amber-500" />
               <StatCard icon={Store} label="Total Merchants" value={summary.totalMerchants} color="bg-[#01411C]" />
               <StatCard icon={Tag} label="Active Offers" value={summary.activeOffers} color="bg-blue-600" />
             </div>

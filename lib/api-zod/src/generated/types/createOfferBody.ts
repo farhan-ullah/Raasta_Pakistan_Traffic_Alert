@@ -21,4 +21,6 @@ export interface CreateOfferBody {
   validUntil?: Date;
   maxRedemptions?: number;
   tags?: string[];
+  /** Secret key for this merchant (required to create an offer) */
+  portalAccessKey: string;
 }

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Map, ShieldAlert, Camera, Shield, BarChart3 } from "lucide-react";
+import { Map, ShieldAlert, Camera, Shield, BarChart3, Tag } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -14,6 +14,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-end justify-around pt-1 px-1 min-h-[4.25rem]">
           <NavItem href="/" icon={<Map size={22} />} label="Map" isActive={location === "/"} />
           <NavItem href="/traffic" icon={<ShieldAlert size={22} />} label="Traffic" isActive={location === "/traffic"} />
+          <NavItem href="/offers" icon={<Tag size={22} />} label="Offers" isActive={location.startsWith("/offers")} />
 
           {/* Centre Report FAB */}
           <Link href="/report">

@@ -14,4 +14,6 @@ export interface UpdateOfferBody {
   isActive?: boolean;
   validUntil?: Date;
   maxRedemptions?: number;
+  /** Merchant portal secret required to update this offer */
+  portalAccessKey: string;
 }

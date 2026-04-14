@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useListOffers } from "@workspace/api-client-react";
-import { Tag, MapPin, Clock, Filter, ShoppingBag, Pill, Scissors, UtensilsCrossed, Coffee, Bike, ShoppingCart, Wheat, Wrench, Search } from "lucide-react";
+import { Tag, MapPin, Clock, ShoppingBag, Pill, Scissors, UtensilsCrossed, Coffee, Bike, ShoppingCart, Wrench, Search, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
@@ -33,10 +33,19 @@ export default function Offers() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="sticky top-0 z-10 bg-[#01411C] text-white px-4 pt-4 pb-3">
-        <h1 className="text-xl font-bold mb-3 flex items-center gap-2">
-          <Tag className="w-5 h-5" />
-          Live Offers Near You
-        </h1>
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Tag className="w-5 h-5 shrink-0" />
+            Live offers near you
+          </h1>
+          <Link
+            href="/merchant-portal"
+            className="shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-white/15 hover:bg-white/25 border border-white/25 rounded-lg px-2 py-1.5 text-white"
+          >
+            <Store className="w-3.5 h-3.5" />
+            Owner
+          </Link>
+        </div>
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
           <input

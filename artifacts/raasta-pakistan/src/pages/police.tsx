@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useListIncidents, type GeocodePlace } from "@workspace/api-client-react";
+import { useListIncidents, getListIncidentsQueryKey, type GeocodePlace } from "@workspace/api-client-react";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import {
   Shield, Plus, MapPin, Clock, AlertTriangle, CheckCircle,
@@ -192,7 +192,12 @@ export default function PoliceDashboard() {
 
   const { data: incidentsRaw, isLoading } = useListIncidents(
     { status: "all" },
-    { query: { refetchInterval: token ? 10_000 : false } }
+    {
+      query: {
+        queryKey: getListIncidentsQueryKey({ status: "all" }),
+        refetchInterval: token ? 10_000 : false,
+      },
+    },
   );
   const incidents = Array.isArray(incidentsRaw) ? incidentsRaw : [];
 

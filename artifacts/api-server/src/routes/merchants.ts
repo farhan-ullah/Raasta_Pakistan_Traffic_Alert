@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
+import crypto from "crypto";
 import { db, merchantsTable, offersTable } from "@workspace/db";
 import {
   CreateMerchantBody,
@@ -8,6 +9,16 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+function stripPortalKey<M extends { portalAccessKey?: string | null }>(m: M): Omit<M, "portalAccessKey"> {
+  const { portalAccessKey: _p, ...rest } = m;
+  return rest;
+}
+
+/** Public demo OSRM — new merchants get a random portal key (save it; required to post offers). */
+function newPortalAccessKey(): string {
+  return crypto.randomBytes(18).toString("hex");
+}
 
 router.get("/merchants/by-category", async (_req, res): Promise<void> => {
   const merchants = await db.select().from(merchantsTable);
@@ -48,7 +59,7 @@ router.get("/merchants", async (req, res): Promise<void> => {
   const result = merchants.map(m => {
     const mOffers = allOffers.filter(o => o.merchantId === m.id);
     return {
-      ...m,
+      ...stripPortalKey(m),
       id: String(m.id),
       activeOffersCount: mOffers.length,
       totalRedemptions: mOffers.reduce((sum, o) => sum + (o.currentRedemptions || 0), 0),
@@ -58,12 +69,33 @@ router.get("/merchants", async (req, res): Promise<void> => {
   res.json(result);
 });
 
+router.post("/merchants/portal/verify", async (req, res): Promise<void> => {
+  const key = typeof req.body?.accessKey === "string" ? req.body.accessKey.trim() : "";
+  if (!key) {
+    res.status(400).json({ error: "accessKey is required" });
+    return;
+  }
+  const [m] = await db.select().from(merchantsTable).where(eq(merchantsTable.portalAccessKey, key));
+  if (!m) {
+    res.status(401).json({ error: "Invalid access key" });
+    return;
+  }
+  res.json({
+    merchantId: String(m.id),
+    name: m.name,
+    category: m.category,
+    address: m.address,
+  });
+});
+
 router.post("/merchants", async (req, res): Promise<void> => {
   const parsed = CreateMerchantBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const portalAccessKey = newPortalAccessKey();
 
   const [merchant] = await db.insert(merchantsTable).values({
     name: parsed.data.name,
@@ -79,9 +111,16 @@ router.post("/merchants", async (req, res): Promise<void> => {
     logoUrl: parsed.data.logoUrl,
     coverUrl: parsed.data.coverUrl,
     openHours: parsed.data.openHours,
+    portalAccessKey,
   }).returning();
 
-  res.status(201).json({ ...merchant, id: String(merchant.id), activeOffersCount: 0, totalRedemptions: 0 });
+  res.status(201).json({
+    ...stripPortalKey(merchant),
+    portalAccessKey,
+    id: String(merchant.id),
+    activeOffersCount: 0,
+    totalRedemptions: 0,
+  });
 });
 
 router.get("/merchants/:id", async (req, res): Promise<void> => {
@@ -101,7 +140,7 @@ router.get("/merchants/:id", async (req, res): Promise<void> => {
   const offers = await db.select().from(offersTable).where(and(eq(offersTable.merchantId, id), eq(offersTable.isActive, true)));
 
   res.json({
-    ...merchant,
+    ...stripPortalKey(merchant),
     id: String(merchant.id),
     activeOffersCount: offers.length,
     totalRedemptions: offers.reduce((sum, o) => sum + (o.currentRedemptions || 0), 0),
@@ -141,7 +180,7 @@ router.patch("/merchants/:id", async (req, res): Promise<void> => {
 
   const offers = await db.select().from(offersTable).where(and(eq(offersTable.merchantId, id), eq(offersTable.isActive, true)));
   res.json({
-    ...merchant,
+    ...stripPortalKey(merchant),
     id: String(merchant.id),
     activeOffersCount: offers.length,
     totalRedemptions: offers.reduce((sum, o) => sum + (o.currentRedemptions || 0), 0),

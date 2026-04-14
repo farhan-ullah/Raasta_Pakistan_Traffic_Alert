@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useGetOffer, useRedeemOffer } from "@workspace/api-client-react";
+import { useGetOffer, useRedeemOffer, getGetOfferQueryKey } from "@workspace/api-client-react";
 import { ArrowLeft, MapPin, Clock, Tag, Star, CheckCircle, QrCode } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,12 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function OfferDetail() {
   const { id } = useParams<{ id: string }>();
-  const { data: offer, isLoading } = useGetOffer(id!, { query: { enabled: !!id } });
+  const { data: offer, isLoading } = useGetOffer(id ?? "", {
+    query: {
+      enabled: !!id,
+      queryKey: id ? getGetOfferQueryKey(id) : (["offers", "disabled"] as const),
+    },
+  });
   const redeemMutation = useRedeemOffer();
   const { toast } = useToast();
   const [redemptionToken, setRedemptionToken] = useState<string | null>(null);
