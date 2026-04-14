@@ -2,106 +2,121 @@ import { Router, type IRouter } from "express";
 import { eq, gte, desc } from "drizzle-orm";
 import { db, incidentsTable, merchantsTable, offersTable, redemptionsTable } from "@workspace/db";
 import { isInPakistan, whereIncidentInPakistan } from "../lib/pakistan-geo";
+import { catchAsync } from "../lib/dbError";
 
 const router: IRouter = Router();
 
-router.get("/dashboard/summary", async (_req, res): Promise<void> => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+function incidentInPakistanSafe(i: { lat: number | null; lng: number | null }): boolean {
+  if (!Number.isFinite(i.lat) || !Number.isFinite(i.lng)) return false;
+  return isInPakistan(i.lat, i.lng);
+}
 
-  const allIncidents = await db.select().from(incidentsTable);
-  const inPk = allIncidents.filter(i => isInPakistan(i.lat, i.lng));
-  const activeIncidents = inPk.filter(i => i.status === "active");
-  const resolvedToday = inPk.filter(i => i.status === "resolved" && new Date(i.updatedAt) >= today);
-  const criticalAlerts = activeIncidents.filter(i => i.severity === "critical");
+router.get(
+  "/dashboard/summary",
+  catchAsync(async (_req, res): Promise<void> => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const affectedRoadsSet = new Set<string>();
-  for (const incident of activeIncidents) {
-    if (incident.affectedRoads) {
-      for (const road of incident.affectedRoads) {
-        affectedRoadsSet.add(road);
+    const allIncidents = await db.select().from(incidentsTable);
+    const inPk = allIncidents.filter(i => incidentInPakistanSafe(i));
+    const activeIncidents = inPk.filter(i => i.status === "active");
+    const resolvedToday = inPk.filter(i => i.status === "resolved" && new Date(i.updatedAt) >= today);
+    const criticalAlerts = activeIncidents.filter(i => i.severity === "critical");
+
+    const affectedRoadsSet = new Set<string>();
+    for (const incident of activeIncidents) {
+      const roads = incident.affectedRoads;
+      if (Array.isArray(roads)) {
+        for (const road of roads) {
+          if (typeof road === "string" && road.trim()) affectedRoadsSet.add(road);
+        }
       }
     }
-  }
 
-  const totalMerchants = await db.select().from(merchantsTable);
-  const activeOffers = await db.select().from(offersTable).where(eq(offersTable.isActive, true));
+    const totalMerchants = await db.select().from(merchantsTable);
+    const activeOffers = await db.select().from(offersTable).where(eq(offersTable.isActive, true));
 
-  const todayRedemptions = await db.select().from(redemptionsTable).where(gte(redemptionsTable.redeemedAt, today));
+    const todayRedemptions = await db.select().from(redemptionsTable).where(gte(redemptionsTable.redeemedAt, today));
 
-  const byType: Record<string, number> = {};
-  for (const incident of activeIncidents) {
-    byType[incident.type] = (byType[incident.type] || 0) + 1;
-  }
-  const incidentsByType = Object.entries(byType).map(([category, count]) => ({
-    category,
-    count,
-    label: category.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-  }));
+    const byType: Record<string, number> = {};
+    for (const incident of activeIncidents) {
+      byType[incident.type] = (byType[incident.type] || 0) + 1;
+    }
+    const incidentsByType = Object.entries(byType).map(([category, count]) => ({
+      category,
+      count,
+      label: category.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+    }));
 
-  const hourlyCounts: Record<string, number> = {};
-  for (const incident of inPk.filter(inc => new Date(inc.createdAt) >= today)) {
-    const hour = `${new Date(incident.createdAt).getHours()}:00`;
-    hourlyCounts[hour] = (hourlyCounts[hour] || 0) + 1;
-  }
-  const hourlyIncidents = Object.entries(hourlyCounts).map(([hour, count]) => ({ hour, count })).sort((a, b) => a.hour.localeCompare(b.hour));
+    const hourlyCounts: Record<string, number> = {};
+    for (const incident of inPk.filter(inc => new Date(inc.createdAt) >= today)) {
+      const hour = `${new Date(incident.createdAt).getHours()}:00`;
+      hourlyCounts[hour] = (hourlyCounts[hour] || 0) + 1;
+    }
+    const hourlyIncidents = Object.entries(hourlyCounts)
+      .map(([hour, count]) => ({ hour, count }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
 
-  res.json({
-    activeIncidents: activeIncidents.length,
-    resolvedToday: resolvedToday.length,
-    totalMerchants: totalMerchants.length,
-    activeOffers: activeOffers.length,
-    totalRedemptionsToday: todayRedemptions.length,
-    criticalAlerts: criticalAlerts.length,
-    affectedRoads: affectedRoadsSet.size,
-    officersOnDuty: 24,
-    incidentsByType,
-    hourlyIncidents,
-  });
-});
+    res.json({
+      activeIncidents: activeIncidents.length,
+      resolvedToday: resolvedToday.length,
+      totalMerchants: totalMerchants.length,
+      activeOffers: activeOffers.length,
+      totalRedemptionsToday: todayRedemptions.length,
+      criticalAlerts: criticalAlerts.length,
+      affectedRoads: affectedRoadsSet.size,
+      officersOnDuty: 24,
+      incidentsByType,
+      hourlyIncidents,
+    });
+  }),
+);
 
-router.get("/dashboard/recent-activity", async (_req, res): Promise<void> => {
-  const incidents = await db
-    .select()
-    .from(incidentsTable)
-    .where(whereIncidentInPakistan())
-    .orderBy(desc(incidentsTable.createdAt))
-    .limit(5);
-  const offers = await db.select().from(offersTable).orderBy(desc(offersTable.createdAt)).limit(3);
-  const merchants = await db.select().from(merchantsTable).orderBy(desc(merchantsTable.createdAt)).limit(2);
+router.get(
+  "/dashboard/recent-activity",
+  catchAsync(async (_req, res): Promise<void> => {
+    const incidents = await db
+      .select()
+      .from(incidentsTable)
+      .where(whereIncidentInPakistan())
+      .orderBy(desc(incidentsTable.createdAt))
+      .limit(5);
+    const offers = await db.select().from(offersTable).orderBy(desc(offersTable.createdAt)).limit(3);
+    const merchants = await db.select().from(merchantsTable).orderBy(desc(merchantsTable.createdAt)).limit(2);
 
-  const activities = [
-    ...incidents.map(i => ({
-      id: `incident-${i.id}`,
-      type: i.status === "resolved" ? "incident_resolved" : "incident_created",
-      title: i.status === "resolved" ? `Resolved: ${i.title}` : `New ${i.type.replace(/_/g, " ")}: ${i.title}`,
-      description: i.description || i.location,
-      timestamp: (i.status === "resolved" ? i.updatedAt : i.createdAt).toISOString(),
-      severity: i.severity,
-      location: i.location,
-    })),
-    ...offers.map(o => ({
-      id: `offer-${o.id}`,
-      type: "offer_created",
-      title: `New offer: ${o.title}`,
-      description: `${o.discountPercent ? o.discountPercent + "% off" : "Special deal"} - ${o.description}`,
-      timestamp: o.createdAt.toISOString(),
-      severity: "low",
-      location: "",
-    })),
-    ...merchants.map(m => ({
-      id: `merchant-${m.id}`,
-      type: "merchant_registered",
-      title: `New merchant: ${m.name}`,
-      description: `${m.category} in ${m.area || m.city}`,
-      timestamp: m.createdAt.toISOString(),
-      severity: "low",
-      location: m.address,
-    })),
-  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10);
+    const activities = [
+      ...incidents.map(i => ({
+        id: `incident-${i.id}`,
+        type: i.status === "resolved" ? "incident_resolved" : "incident_created",
+        title: i.status === "resolved" ? `Resolved: ${i.title}` : `New ${i.type.replace(/_/g, " ")}: ${i.title}`,
+        description: i.description || i.location,
+        timestamp: (i.status === "resolved" ? i.updatedAt : i.createdAt).toISOString(),
+        severity: i.severity,
+        location: i.location,
+      })),
+      ...offers.map(o => ({
+        id: `offer-${o.id}`,
+        type: "offer_created",
+        title: `New offer: ${o.title}`,
+        description: `${o.discountPercent ? o.discountPercent + "% off" : "Special deal"} - ${o.description}`,
+        timestamp: o.createdAt.toISOString(),
+        severity: "low",
+        location: "",
+      })),
+      ...merchants.map(m => ({
+        id: `merchant-${m.id}`,
+        type: "merchant_registered",
+        title: `New merchant: ${m.name}`,
+        description: `${m.category} in ${m.area || m.city}`,
+        timestamp: m.createdAt.toISOString(),
+        severity: "low",
+        location: m.address,
+      })),
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10);
 
-  res.json(activities);
-});
+    res.json(activities);
+  }),
+);
 
 router.get("/routes/alternate", async (req, res): Promise<void> => {
   const { from, to } = req.query as { from?: string; to?: string };

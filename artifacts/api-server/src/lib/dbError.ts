@@ -81,6 +81,11 @@ function isMissingRelationError(err: unknown): boolean {
   return false;
 }
 
+function isUndefinedColumnError(err: unknown): boolean {
+  const blob = errorTextForScan(err);
+  return /42703|undefined column|column .* does not exist/i.test(blob);
+}
+
 /** Send JSON when Drizzle/pg fails; 503 if tables were never created (drizzle-kit push). */
 export function respondDbError(res: Response, err: unknown): void {
   if (res.headersSent) return;
@@ -89,6 +94,14 @@ export function respondDbError(res: Response, err: unknown): void {
     res.status(503).json({
       error: "Database schema not applied",
       hint: "Start PostgreSQL, set DATABASE_URL, then run: pnpm run db:push (see docker-compose.yml).",
+    });
+    return;
+  }
+
+  if (isUndefinedColumnError(err)) {
+    res.status(503).json({
+      error: "Database schema out of date",
+      hint: "Run from the repo: pnpm run db:push — your PostgreSQL is missing columns the API expects (e.g. after pulling new code).",
     });
     return;
   }
