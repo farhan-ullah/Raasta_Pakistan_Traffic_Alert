@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, gte, desc } from "drizzle-orm";
 import { db, incidentsTable, merchantsTable, offersTable, redemptionsTable } from "@workspace/db";
+import { isInPakistan, whereIncidentInPakistan } from "../lib/pakistan-geo";
 
 const router: IRouter = Router();
 
@@ -9,8 +10,9 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   today.setHours(0, 0, 0, 0);
 
   const allIncidents = await db.select().from(incidentsTable);
-  const activeIncidents = allIncidents.filter(i => i.status === "active");
-  const resolvedToday = allIncidents.filter(i => i.status === "resolved" && new Date(i.updatedAt) >= today);
+  const inPk = allIncidents.filter(i => isInPakistan(i.lat, i.lng));
+  const activeIncidents = inPk.filter(i => i.status === "active");
+  const resolvedToday = inPk.filter(i => i.status === "resolved" && new Date(i.updatedAt) >= today);
   const criticalAlerts = activeIncidents.filter(i => i.severity === "critical");
 
   const affectedRoadsSet = new Set<string>();
@@ -38,7 +40,7 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   }));
 
   const hourlyCounts: Record<string, number> = {};
-  for (const incident of allIncidents.filter(inc => new Date(inc.createdAt) >= today)) {
+  for (const incident of inPk.filter(inc => new Date(inc.createdAt) >= today)) {
     const hour = `${new Date(incident.createdAt).getHours()}:00`;
     hourlyCounts[hour] = (hourlyCounts[hour] || 0) + 1;
   }
@@ -59,7 +61,12 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
 });
 
 router.get("/dashboard/recent-activity", async (_req, res): Promise<void> => {
-  const incidents = await db.select().from(incidentsTable).orderBy(desc(incidentsTable.createdAt)).limit(5);
+  const incidents = await db
+    .select()
+    .from(incidentsTable)
+    .where(whereIncidentInPakistan())
+    .orderBy(desc(incidentsTable.createdAt))
+    .limit(5);
   const offers = await db.select().from(offersTable).orderBy(desc(offersTable.createdAt)).limit(3);
   const merchants = await db.select().from(merchantsTable).orderBy(desc(merchantsTable.createdAt)).limit(2);
 

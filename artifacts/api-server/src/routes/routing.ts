@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, incidentsTable } from "@workspace/db";
 import { catchAsync } from "../lib/dbError";
+import { isInPakistan, whereIncidentInPakistan } from "../lib/pakistan-geo";
 import { bufferMeters, normalizeIncidentType } from "./incident-zones";
 import { fetchOrsRouteWithAvoidPolygons } from "./ors-routing";
 
@@ -409,6 +410,37 @@ function progressAlongChord(
   return (px * bx + py * by) / Math.sqrt(ab2);
 }
 
+/**
+ * Active incidents whose pins lie near this A→B request. Drops stray rows (wrong lat/lng in DB,
+ * other cities) so ORS avoid polygons and conflict scoring stay local to the trip.
+ */
+function incidentsNearRouteSegment(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+  rows: IncidentRow[],
+): IncidentRow[] {
+  const pad = 0.55;
+  const minLat = Math.min(fromLat, toLat) - pad;
+  const maxLat = Math.max(fromLat, toLat) + pad;
+  const minLng = Math.min(fromLng, toLng) - pad;
+  const maxLng = Math.max(fromLng, toLng) + pad;
+  const out: IncidentRow[] = [];
+  const dropped: number[] = [];
+  for (const row of rows) {
+    if (row.lat >= minLat && row.lat <= maxLat && row.lng >= minLng && row.lng <= maxLng) {
+      out.push(row);
+    } else {
+      dropped.push(row.id);
+    }
+  }
+  if (dropped.length > 0) {
+    console.warn("[routing] Skipped incidents outside route corridor (planning only), ids:", dropped.join(", "));
+  }
+  return out;
+}
+
 router.post(
   "/routes/plan",
   catchAsync(async (req, res): Promise<void> => {
@@ -426,8 +458,16 @@ router.post(
       res.status(400).json({ error: "fromLat, fromLng, toLat, toLng must be numbers" });
       return;
     }
+    if (!isInPakistan(fromLat, fromLng) || !isInPakistan(toLat, toLng)) {
+      res.status(400).json({ error: "from and to coordinates must be within Pakistan" });
+      return;
+    }
 
-    const incidents = await db.select().from(incidentsTable).where(eq(incidentsTable.status, "active"));
+    const allActiveIncidents = await db
+      .select()
+      .from(incidentsTable)
+      .where(and(eq(incidentsTable.status, "active"), whereIncidentInPakistan()));
+    const incidents = incidentsNearRouteSegment(fromLat, fromLng, toLat, toLng, allActiveIncidents);
 
     const toSegment = (r: OsrmRoute, conflicts: Conflict[]) => ({
       geometry: {
@@ -478,7 +518,7 @@ router.post(
       }
       if (orsConflicts.length > 0) {
         textSuggestions.add(
-          "OpenStreetMap routing cannot block roads; we bias away from alerts. Obey police signs and local closures on the ground.",
+          "The line may still run near a red alert: ORS blocks fixed disks around pins, while the map shows a wider “danger” corridor. Real closures follow police on the ground.",
         );
       }
 

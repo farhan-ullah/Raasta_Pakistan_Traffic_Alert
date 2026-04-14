@@ -1,7 +1,11 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
+import { PAKISTAN_BOUNDS, isInPakistan } from "../lib/pakistan-geo";
 
 const PHOTON = "https://photon.komoot.io/api";
+
+/** Photon `bbox`: minLon,minLat,maxLon,maxLat — restricts search to Pakistan. */
+const PHOTON_PAKISTAN_BBOX = `${PAKISTAN_BOUNDS.minLng},${PAKISTAN_BOUNDS.minLat},${PAKISTAN_BOUNDS.maxLng},${PAKISTAN_BOUNDS.maxLat}`;
 
 type PhotonProps = {
   osm_type?: string;
@@ -78,6 +82,7 @@ router.get("/geocode/search", async (req: Request, res: Response) => {
   url.searchParams.set("q", q);
   url.searchParams.set("limit", "12");
   url.searchParams.set("lang", "en");
+  url.searchParams.set("bbox", PHOTON_PAKISTAN_BBOX);
 
   try {
     const upstream = await fetch(url, {
@@ -111,7 +116,9 @@ router.get("/geocode/search", async (req: Request, res: Response) => {
         lat: Number.isFinite(lat) ? lat : 0,
         lng: Number.isFinite(lng) ? lng : 0,
       };
-    }).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+    }).filter(
+      (x) => Number.isFinite(x.lat) && Number.isFinite(x.lng) && isInPakistan(x.lat, x.lng),
+    );
 
     return res.json(out);
   } catch {

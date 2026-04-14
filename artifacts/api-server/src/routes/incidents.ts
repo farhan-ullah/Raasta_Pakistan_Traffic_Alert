@@ -10,27 +10,29 @@ import {
 } from "@workspace/api-zod";
 import { requirePoliceAuth } from "../middleware/policeAuth";
 import { catchAsync } from "../lib/dbError";
+import { isInPakistan, whereIncidentInPakistan } from "../lib/pakistan-geo";
 
 const router: IRouter = Router();
 
 router.get("/incidents/summary", catchAsync(async (_req, res): Promise<void> => {
   const allIncidents = await db.select().from(incidentsTable);
-  const active = allIncidents.filter(i => i.status === "active");
-  const resolved = allIncidents.filter(i => i.status === "resolved");
+  const inPk = allIncidents.filter(i => isInPakistan(i.lat, i.lng));
+  const active = inPk.filter(i => i.status === "active");
+  const resolved = inPk.filter(i => i.status === "resolved");
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const todayCount = allIncidents.filter(i => new Date(i.createdAt) >= today).length;
+  const todayCount = inPk.filter(i => new Date(i.createdAt) >= today).length;
 
   const byType: Record<string, number> = {};
   const bySeverity: Record<string, number> = {};
-  for (const incident of allIncidents) {
+  for (const incident of inPk) {
     byType[incident.type] = (byType[incident.type] || 0) + 1;
     bySeverity[incident.severity] = (bySeverity[incident.severity] || 0) + 1;
   }
 
   res.json({
-    total: allIncidents.length,
+    total: inPk.length,
     active: active.length,
     resolved: resolved.length,
     byType,
@@ -53,7 +55,7 @@ router.get("/incidents/active-map", catchAsync(async (_req, res): Promise<void> 
       createdAt: incidentsTable.createdAt,
     })
     .from(incidentsTable)
-    .where(eq(incidentsTable.status, "active"))
+    .where(and(eq(incidentsTable.status, "active"), whereIncidentInPakistan()))
     .orderBy(desc(incidentsTable.createdAt));
   res.json(incidents.map(i => ({ ...i, id: String(i.id) })));
 }));
@@ -62,7 +64,7 @@ router.get("/incidents", catchAsync(async (req, res): Promise<void> => {
   const params = ListIncidentsQueryParams.safeParse(req.query);
   let query = db.select().from(incidentsTable).$dynamic();
 
-  const conditions = [];
+  const conditions = [whereIncidentInPakistan()];
   if (params.success) {
     if (params.data.status && params.data.status !== "all") {
       conditions.push(eq(incidentsTable.status, params.data.status));
@@ -75,9 +77,7 @@ router.get("/incidents", catchAsync(async (req, res): Promise<void> => {
     }
   }
 
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions));
-  }
+  query = query.where(and(...conditions));
 
   const incidents = await query.orderBy(desc(incidentsTable.createdAt));
   res.json(incidents.map(i => ({
@@ -97,6 +97,11 @@ router.post("/incidents", (req, res, next): void => {
   const parsed = CreateIncidentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  if (!isInPakistan(parsed.data.lat, parsed.data.lng)) {
+    res.status(400).json({ error: "lat and lng must be within Pakistan" });
     return;
   }
 
