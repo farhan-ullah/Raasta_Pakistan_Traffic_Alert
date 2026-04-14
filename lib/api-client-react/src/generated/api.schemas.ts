@@ -453,6 +453,11 @@ export interface RoutePlanResponse {
   /** Which engine produced the **recommended** route: OpenRouteService (polygon avoidance) or OSRM-only (detours / alternatives).
    */
   routingBackend: RoutePlanResponseRoutingBackend;
+  /** Present when a blockage, VIP movement, or construction pin falls between start and destination
+along the straight-line corridor (not only near A or B). Suggests the user may pick an alternative road;
+the drawn polyline remains a best-effort suggestion.
+ */
+  betweenEndpointsAlert?: string;
   textSuggestions?: string[];
 }
 

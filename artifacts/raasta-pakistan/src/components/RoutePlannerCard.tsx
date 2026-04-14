@@ -245,6 +245,11 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
                   ? "OpenRouteService (hazard avoidance)"
                   : "OSRM (best-effort detours)"}
               </p>
+              {summary.betweenEndpointsAlert ? (
+                <p className="text-amber-900 text-xs font-medium rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5">
+                  {summary.betweenEndpointsAlert}
+                </p>
+              ) : null}
               {summary.recommendedIsAlternative ? (
                 <p className="text-[#15803d] font-medium">
                   Safer alternative — your first path crossed active alerts in Raasta.

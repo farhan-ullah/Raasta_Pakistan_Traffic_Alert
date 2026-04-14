@@ -829,5 +829,11 @@ export const PlanRouteResponse = zod.object({
     .describe(
       "Which engine produced the \*\*recommended\*\* route: OpenRouteService (polygon avoidance) or OSRM-only (detours \/ alternatives).\n",
     ),
+  betweenEndpointsAlert: zod
+    .string()
+    .optional()
+    .describe(
+      "Present when a blockage, VIP movement, or construction pin falls between start and destination\nalong the straight-line corridor (not only near A or B). Suggests the user may pick an alternative road;\nthe drawn polyline remains a best-effort suggestion.\n",
+    ),
   textSuggestions: zod.array(zod.string()).optional(),
 });

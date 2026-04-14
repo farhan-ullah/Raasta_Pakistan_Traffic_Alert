@@ -32,6 +32,8 @@ export type RoutePlanResponse = {
   recommended: RouteSegment;
   recommendedIsAlternative: boolean;
   routingBackend: RoutePlanRoutingBackend;
+  /** Hazards between start & destination along the direct corridor — consider an alternative road. */
+  betweenEndpointsAlert?: string;
   textSuggestions?: string[];
 };
 

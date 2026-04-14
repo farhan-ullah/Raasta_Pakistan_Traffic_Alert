@@ -245,6 +245,11 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
                   ? "OpenRouteService (hazard avoidance)"
                   : "OSRM (best-effort detours)"}
               </Text>
+              {summary.betweenEndpointsAlert ? (
+                <Text style={[styles.routePlannerHint, { color: "#b45309", fontWeight: "600", marginTop: 4 }]}>
+                  {summary.betweenEndpointsAlert}
+                </Text>
+              ) : null}
               {alt ? (
                 <Text style={[styles.routePlannerHint, { color: "#15803d" }]}>
                   Safer alternative selected — your first path crossed active high-risk or restricted areas in Raasta.

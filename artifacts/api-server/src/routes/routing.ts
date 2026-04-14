@@ -385,6 +385,120 @@ async function fetchOsrmRouteThroughPoints(pointsLngLat: [number, number][]): Pr
   return data.routes[0] ?? null;
 }
 
+/** One OSRM/ORS route option with conflict scoring — used to pick the cleanest line. */
+type RouteCandidate = {
+  route: OsrmRoute;
+  conflicts: Conflict[];
+  score: number;
+  index: number;
+  source: string;
+  clearance: number;
+};
+
+/** Lower is better: fewer conflicts, then lower severity score, then more clearance, then shorter time. */
+function compareRouteCandidates(a: RouteCandidate, b: RouteCandidate): number {
+  const na = a.conflicts.length;
+  const nb = b.conflicts.length;
+  if (na !== nb) return na - nb;
+  if (a.score !== b.score) return a.score - b.score;
+  if (a.clearance !== b.clearance) return b.clearance - a.clearance;
+  return a.route.duration - b.route.duration;
+}
+
+/**
+ * OSRM direct + alternative routes + detour polylines through bias waypoints.
+ * Used alone when ORS is unavailable, and when ORS avoid_polygons still crosses hazards.
+ */
+async function collectOsrmRoutesWithDetours(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+  incidents: IncidentRow[],
+  osrmRoutes: OsrmRoute[],
+): Promise<RouteCandidate[]> {
+  const analyzed: RouteCandidate[] = osrmRoutes.map((r, index) => {
+    const coords = r.geometry.coordinates as [number, number][];
+    const conflicts = findConflicts(coords, incidents);
+    return {
+      index,
+      route: r,
+      conflicts,
+      score: scoreConflicts(conflicts),
+      clearance: minClearanceToIncidents(coords, incidents),
+      source: index === 0 ? "osrm_direct" : "osrm_alternative",
+    };
+  });
+
+  const primary = analyzed[0]!;
+  const polylineForDetours = primary.route.geometry.coordinates as [number, number][];
+
+  const addDetourRoute = (route: OsrmRoute, source: string) => {
+    const coords = route.geometry.coordinates as [number, number][];
+    const conflicts = findConflicts(coords, incidents);
+    analyzed.push({
+      index: analyzed.length,
+      route,
+      conflicts,
+      score: scoreConflicts(conflicts),
+      clearance: minClearanceToIncidents(coords, incidents),
+      source,
+    });
+  };
+
+  const conflictsForDetour = sortConflictsBySeverity(findConflicts(polylineForDetours, incidents));
+  const uniqueById = new Map<number, Conflict>();
+  for (const c of conflictsForDetour) {
+    if (!uniqueById.has(c.id)) uniqueById.set(c.id, c);
+  }
+  const topHazards = [...uniqueById.values()].slice(0, 6);
+
+  type DetourTask = { points: [number, number][]; source: string };
+  const detourTasks: DetourTask[] = [];
+  const pushTask = (points: [number, number][], source: string) => {
+    if (detourTasks.length >= MAX_DETOUR_TASKS) return;
+    detourTasks.push({ points, source });
+  };
+
+  const polyOffsetsM = [800, 1800];
+  for (const c of topHazards.slice(0, 2)) {
+    for (const off of polyOffsetsM) {
+      for (const flip of [false, true]) {
+        const via = detourWaypointLngLat(polylineForDetours, c.lat, c.lng, off, flip);
+        if (via) pushTask([[fromLng, fromLat], via, [toLng, toLat]], `detour_via_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
+      }
+    }
+  }
+
+  const chordOffM = [2000];
+  for (const c of topHazards.slice(0, 2)) {
+    for (const off of chordOffM) {
+      for (const flip of [false, true]) {
+        const via = detourWaypointFromChord(fromLat, fromLng, toLat, toLng, c.lat, c.lng, off, flip);
+        if (via) pushTask([[fromLng, fromLat], via, [toLng, toLat]], `detour_chord_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
+      }
+    }
+  }
+
+  const c0 = topHazards[0];
+  if (c0) {
+    const viaA = radialWaypointLngLat(c0.lat, c0.lng, 4500, 0, 8);
+    pushTask([[fromLng, fromLat], viaA, [toLng, toLat]], `detour_radial_4500m_b0_inc${c0.id}`);
+    const viaB = radialWaypointLngLat(c0.lat, c0.lng, 7500, 4, 8);
+    pushTask([[fromLng, fromLat], viaB, [toLng, toLat]], `detour_radial_7500m_b4_inc${c0.id}`);
+  }
+
+  for (let i = 0; i < detourTasks.length; i += OSRM_PARALLEL_BATCH) {
+    const batch = detourTasks.slice(i, i + OSRM_PARALLEL_BATCH);
+    const results = await Promise.all(batch.map(t => fetchOsrmRouteThroughPoints(t.points)));
+    results.forEach((r, j) => {
+      if (r) addDetourRoute(r, batch[j]!.source);
+    });
+  }
+
+  return analyzed;
+}
+
 function sortConflictsBySeverity(conflicts: Conflict[]): Conflict[] {
   return [...conflicts].sort((a, b) => {
     const wa = conflictWeight({ type: a.type, severity: a.severity });
@@ -408,6 +522,67 @@ function progressAlongChord(
   const py = (lat - fromLat) * METERS_PER_DEG_LAT;
   const ab2 = bx * bx + by * by || 1;
   return (px * bx + py * by) / Math.sqrt(ab2);
+}
+
+/** Lateral max from straight A→B (m); hazards farther aside are “off corridor”. */
+const BETWEEN_ENDPOINTS_LATERAL_MAX_M = 9_000;
+/** Fraction of trip length from A/B to exclude (avoid “at start/end only”). */
+const BETWEEN_ENDPOINTS_T_MARGIN = 0.06;
+
+/**
+ * True if (lat,lng) projects onto the segment A→B between the endpoints (not past A or B),
+ * within a corridor around the straight line — i.e. “between” start and destination.
+ */
+function hazardBetweenEndpoints(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+  lat: number,
+  lng: number,
+): boolean {
+  const bx = (toLng - fromLng) * metersPerDegLng(fromLat);
+  const by = (toLat - fromLat) * METERS_PER_DEG_LAT;
+  const px = (lng - fromLng) * metersPerDegLng(fromLat);
+  const py = (lat - fromLat) * METERS_PER_DEG_LAT;
+  const ab2 = bx * bx + by * by || 1;
+  const abLen = Math.sqrt(ab2);
+  if (abLen < 350) return false;
+  const t = (px * bx + py * by) / ab2;
+  if (t < BETWEEN_ENDPOINTS_T_MARGIN || t > 1 - BETWEEN_ENDPOINTS_T_MARGIN) return false;
+  const cross = px * by - py * bx;
+  const lateralM = Math.abs(cross) / abLen;
+  return lateralM <= BETWEEN_ENDPOINTS_LATERAL_MAX_M;
+}
+
+/** User-facing hint when blockages/VIP/construction pins fall between A and B along the direct corridor. */
+function buildBetweenEndpointsAlert(
+  incidents: IncidentRow[],
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+): string | undefined {
+  let n = 0;
+  for (const inc of incidents) {
+    const ty = normalizeIncidentType(inc.type);
+    if (ty !== "blockage" && ty !== "vip_movement" && ty !== "construction") continue;
+    if (hazardBetweenEndpoints(fromLat, fromLng, toLat, toLng, inc.lat, inc.lng)) n += 1;
+  }
+  if (n === 0) return undefined;
+  return (
+    "Reported hazard(s) lie between your start and destination — you may need an alternative road. " +
+    "Follow police detour signs on the ground; the green line is our best automated suggestion."
+  );
+}
+
+function mergeTextSuggestions(betweenAlert: string | undefined, suggestions: Set<string>): string[] {
+  const out: string[] = [];
+  if (betweenAlert) out.push(betweenAlert);
+  for (const s of suggestions) {
+    if (!betweenAlert || s !== betweenAlert) out.push(s);
+  }
+  return out;
 }
 
 /**
@@ -468,6 +643,7 @@ router.post(
       .from(incidentsTable)
       .where(and(eq(incidentsTable.status, "active"), whereIncidentInPakistan()));
     const incidents = incidentsNearRouteSegment(fromLat, fromLng, toLat, toLng, allActiveIncidents);
+    const betweenAlert = buildBetweenEndpointsAlert(incidents, fromLat, fromLng, toLat, toLng);
 
     const toSegment = (r: OsrmRoute, conflicts: Conflict[]) => ({
       geometry: {
@@ -500,6 +676,36 @@ router.post(
       const orsCoords = orsRoute.geometry.coordinates as [number, number][];
       const orsConflicts = findConflicts(orsCoords, incidents);
 
+      let recommendedRoute: OsrmRoute = orsRoute as OsrmRoute;
+      let recommendedConflicts = orsConflicts;
+      let routingBackend: "openrouteservice" | "osrm" = "openrouteservice";
+      let bestSource = "ors_avoid_polygons";
+
+      if (orsConflicts.length > 0 && incidents.length > 0) {
+        const detourCandidates = await collectOsrmRoutesWithDetours(fromLat, fromLng, toLat, toLng, incidents, osrmRoutes);
+        const orsCandidate: RouteCandidate = {
+          route: orsRoute as OsrmRoute,
+          conflicts: orsConflicts,
+          score: scoreConflicts(orsConflicts),
+          index: -1,
+          source: "ors_avoid_polygons",
+          clearance: minClearanceToIncidents(orsCoords, incidents),
+        };
+        let best: RouteCandidate = orsCandidate;
+        for (const a of detourCandidates) {
+          if (compareRouteCandidates(a, best) < 0) best = a;
+        }
+        recommendedRoute = best.route;
+        recommendedConflicts = findConflicts(best.route.geometry.coordinates as [number, number][], incidents);
+        bestSource = best.source;
+        routingBackend = best.source === "ors_avoid_polygons" ? "openrouteservice" : "osrm";
+        if (best.source !== "ors_avoid_polygons" && recommendedConflicts.length < orsConflicts.length) {
+          console.warn(
+            `[routing] Recommended OSRM/detour (${best.source}) had fewer hazard crossings than ORS avoid_polygons (${recommendedConflicts.length} vs ${orsConflicts.length}).`,
+          );
+        }
+      }
+
       const textSuggestions = new Set<string>();
       for (const c of primaryConflicts) {
         const row = incidents.find(i => i.id === c.id);
@@ -510,24 +716,34 @@ router.post(
         }
       }
       if (incidents.length > 0) {
-        textSuggestions.add("Recommended route avoids reported hazard areas (OpenRouteService).");
+        if (routingBackend === "openrouteservice") {
+          textSuggestions.add("Recommended route avoids reported hazard areas (OpenRouteService).");
+        } else {
+          textSuggestions.add(
+            "Recommended route was chosen from OSRM paths with fewer crossings of reported hazard zones than the ORS line for this trip.",
+          );
+        }
       } else {
         textSuggestions.add(
           "Recommended route uses OpenRouteService (no active incidents to avoid — add alerts to enable polygon avoidance).",
         );
       }
-      if (orsConflicts.length > 0) {
+      if (recommendedConflicts.length > 0) {
         textSuggestions.add(
-          "The line may still run near a red alert: ORS blocks fixed disks around pins, while the map shows a wider “danger” corridor. Real closures follow police on the ground.",
+          "The line may still run near a red alert: we approximate closures around pins; the map corridor can be wider. Obey police on the ground.",
         );
       }
 
+      const recommendedIsAlternative =
+        routingBackend === "openrouteservice" ? true : bestSource !== "osrm_direct";
+
       res.json({
         primary: toSegment(primaryRoute, primaryConflicts),
-        recommended: toSegment(orsRoute, orsConflicts),
-        recommendedIsAlternative: true,
-        routingBackend: "openrouteservice" as const,
-        textSuggestions: [...textSuggestions],
+        recommended: toSegment(recommendedRoute, recommendedConflicts),
+        recommendedIsAlternative,
+        routingBackend,
+        ...(betweenAlert ? { betweenEndpointsAlert: betweenAlert } : {}),
+        textSuggestions: mergeTextSuggestions(betweenAlert, textSuggestions),
       });
       return;
     }
@@ -542,110 +758,14 @@ router.post(
       return;
     }
 
-    type Analyzed = {
-      route: OsrmRoute;
-      conflicts: Conflict[];
-      score: number;
-      index: number;
-      source: string;
-      clearance: number;
-    };
-    const analyzed: Analyzed[] = osrmRoutes.map((r, index) => {
-      const coords = r.geometry.coordinates as [number, number][];
-      const conflicts = findConflicts(coords, incidents);
-      return {
-        index,
-        route: r,
-        conflicts,
-        score: scoreConflicts(conflicts),
-        clearance: minClearanceToIncidents(coords, incidents),
-        source: index === 0 ? "osrm_direct" : "osrm_alternative",
-      };
-    });
-
-    const primary = analyzed[0]!;
-    const polylineForDetours = primary.route.geometry.coordinates as [number, number][];
-
-    /** Collect extra routes that explicitly avoid hazard coordinates via detour waypoints. */
-    const addDetourRoute = (route: OsrmRoute, source: string) => {
-      const coords = route.geometry.coordinates as [number, number][];
-      const conflicts = findConflicts(coords, incidents);
-      analyzed.push({
-        index: analyzed.length,
-        route,
-        conflicts,
-        score: scoreConflicts(conflicts),
-        clearance: minClearanceToIncidents(coords, incidents),
-        source,
-      });
-    };
-
-    const conflictsForDetour = sortConflictsBySeverity(findConflicts(polylineForDetours, incidents));
-    const uniqueById = new Map<number, Conflict>();
-    for (const c of conflictsForDetour) {
-      if (!uniqueById.has(c.id)) uniqueById.set(c.id, c);
-    }
-    const topHazards = [...uniqueById.values()].slice(0, 6);
-
-    /**
-     * Few OSRM calls, executed in parallel batches — sequential ~120 calls caused nginx 504.
-     */
-    type DetourTask = { points: [number, number][]; source: string };
-    const detourTasks: DetourTask[] = [];
-    const pushTask = (points: [number, number][], source: string) => {
-      if (detourTasks.length >= MAX_DETOUR_TASKS) return;
-      detourTasks.push({ points, source });
-    };
-
-    const polyOffsetsM = [800, 1800];
-    for (const c of topHazards.slice(0, 2)) {
-      for (const off of polyOffsetsM) {
-        for (const flip of [false, true]) {
-          const via = detourWaypointLngLat(polylineForDetours, c.lat, c.lng, off, flip);
-          if (via) pushTask([[fromLng, fromLat], via, [toLng, toLat]], `detour_via_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
-        }
-      }
-    }
-
-    const chordOffM = [2000];
-    for (const c of topHazards.slice(0, 2)) {
-      for (const off of chordOffM) {
-        for (const flip of [false, true]) {
-          const via = detourWaypointFromChord(fromLat, fromLng, toLat, toLng, c.lat, c.lng, off, flip);
-          if (via) pushTask([[fromLng, fromLat], via, [toLng, toLat]], `detour_chord_${off}m_${flip ? "b" : "a"}_inc${c.id}`);
-        }
-      }
-    }
-
-    const c0 = topHazards[0];
-    if (c0) {
-      const viaA = radialWaypointLngLat(c0.lat, c0.lng, 4500, 0, 8);
-      pushTask([[fromLng, fromLat], viaA, [toLng, toLat]], `detour_radial_4500m_b0_inc${c0.id}`);
-      const viaB = radialWaypointLngLat(c0.lat, c0.lng, 7500, 4, 8);
-      pushTask([[fromLng, fromLat], viaB, [toLng, toLat]], `detour_radial_7500m_b4_inc${c0.id}`);
-    }
-
-    for (let i = 0; i < detourTasks.length; i += OSRM_PARALLEL_BATCH) {
-      const batch = detourTasks.slice(i, i + OSRM_PARALLEL_BATCH);
-      const results = await Promise.all(batch.map(t => fetchOsrmRouteThroughPoints(t.points)));
-      results.forEach((r, j) => {
-        if (r) addDetourRoute(r, batch[j]!.source);
-      });
-    }
-
-    const compareAnalyzed = (a: Analyzed, b: Analyzed): number => {
-      const na = a.conflicts.length;
-      const nb = b.conflicts.length;
-      if (na !== nb) return na - nb;
-      if (a.score !== b.score) return a.score - b.score;
-      if (a.clearance !== b.clearance) return b.clearance - a.clearance;
-      return a.route.duration - b.route.duration;
-    };
+    const analyzed = await collectOsrmRoutesWithDetours(fromLat, fromLng, toLat, toLng, incidents, osrmRoutes);
 
     let best = analyzed[0]!;
     for (const a of analyzed) {
-      if (compareAnalyzed(a, best) < 0) best = a;
+      if (compareRouteCandidates(a, best) < 0) best = a;
     }
+
+    const primary = analyzed[0]!;
 
     const recommendedIsAlternative = best.index !== 0 || best.source !== "osrm_direct";
 
@@ -681,7 +801,8 @@ router.post(
       recommended: toSegment(best.route, best.conflicts),
       recommendedIsAlternative,
       routingBackend: "osrm" as const,
-      textSuggestions: [...textSuggestions],
+      ...(betweenAlert ? { betweenEndpointsAlert: betweenAlert } : {}),
+      textSuggestions: mergeTextSuggestions(betweenAlert, textSuggestions),
     });
   }),
 );

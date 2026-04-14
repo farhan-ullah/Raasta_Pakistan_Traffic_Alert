@@ -165,11 +165,14 @@ export async function fetchOrsRouteWithAvoidPolygons(
     units: "m",
   };
 
-  /** Descending caps: full set → 4 → 2 → plain ORS (0). */
+  /**
+   * Descending caps: full set → 4 → 2. We intentionally do **not** fall back to plain ORS (0 polygons)
+   * while incidents exist — that would route straight through blockages and defeats avoidance.
+   */
   const caps =
     incidents.length === 0
       ? [0]
-      : [...new Set([MAX_AVOID_POLYGONS, 4, 2, 0])].sort((a, b) => b - a);
+      : [...new Set([MAX_AVOID_POLYGONS, 4, 2])].sort((a, b) => b - a);
 
   for (const cap of caps) {
     const avoid = buildAvoidMultiPolygon(incidents, cap);
@@ -181,7 +184,7 @@ export async function fetchOrsRouteWithAvoidPolygons(
     if (route) {
       if (incidents.length > 0 && cap < MAX_AVOID_POLYGONS) {
         console.warn(
-          `[ORS] Route obtained with reduced avoidance (cap=${cap === 0 ? "none" : cap} polygons; full set failed or unparsable).`,
+          `[ORS] Route obtained with reduced avoidance (cap=${cap} polygons; full set failed or unparsable).`,
         );
       }
       return route;
