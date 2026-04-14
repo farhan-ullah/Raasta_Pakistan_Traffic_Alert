@@ -112,14 +112,18 @@ export async function fetchOrsRouteWithAvoidPolygons(
     ] as [number, number][],
     preference: "recommended",
     units: "m",
-    geometry: true,
-    geometry_format: "geojson",
     options: {
       avoid_polygons: avoid,
     },
   };
 
-  const res = await orsPost("/v2/directions/driving-car", baseBody);
+  /** Prefer GeoJSON endpoint — returns LineString coordinates (no encoded polyline ambiguity). */
+  let res = await orsPost("/v2/directions/driving-car/geojson", baseBody);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    console.warn("[ORS] GeoJSON directions failed, trying default endpoint:", res.status, errText.slice(0, 300));
+    res = await orsPost("/v2/directions/driving-car", { ...baseBody, geometry: true });
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
@@ -131,33 +135,111 @@ export async function fetchOrsRouteWithAvoidPolygons(
     return null;
   }
 
-  const data = (await res.json()) as {
-    routes?: Array<{
-      summary?: { distance?: number; duration?: number };
-      geometry?: { type?: string; coordinates?: [number, number][] };
-    }>;
-    error?: { code?: number; message?: string };
-  };
+  const raw = (await res.json()) as unknown;
+  const parsed = parseOrsDirectionsJson(raw);
+  if (!parsed) {
+    console.warn("[ORS] Could not parse route geometry from response");
+    return null;
+  }
+  return parsed;
+}
+
+type OrsRoutesEnvelope = {
+  routes?: Array<{
+    summary?: { distance?: number; duration?: number };
+    geometry?: unknown;
+  }>;
+  error?: { code?: number; message?: string };
+};
+
+type OrsGeoJsonFc = {
+  type?: string;
+  features?: Array<{
+    geometry?: { type?: string; coordinates?: [number, number][] };
+    properties?: { summary?: { distance?: number; duration?: number } };
+  }>;
+  error?: { message?: string };
+};
+
+function parseOrsDirectionsJson(raw: unknown): OsrmCompatibleRoute | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as OrsGeoJsonFc & OrsRoutesEnvelope;
 
   if (data.error?.message) {
     console.warn("[ORS] Error:", data.error.message);
     return null;
   }
 
+  if (data.type === "FeatureCollection" && Array.isArray(data.features) && data.features.length > 0) {
+    const feat =
+      data.features.find(f => f.geometry?.type === "LineString" && f.geometry.coordinates?.length) ?? data.features[0];
+    const coords = feat?.geometry?.coordinates;
+    const summary = feat?.properties?.summary;
+    if (coords?.length) {
+      return {
+        geometry: { type: "LineString", coordinates: coords },
+        distance: Number(summary?.distance ?? 0),
+        duration: Number(summary?.duration ?? 0),
+      };
+    }
+  }
+
   const route = data.routes?.[0];
-  const coords = route?.geometry?.coordinates;
-  if (!route || !coords?.length) return null;
+  if (!route) return null;
 
   const summary = route.summary;
   const distance = Number(summary?.distance ?? 0);
   const duration = Number(summary?.duration ?? 0);
 
+  const geom = route.geometry as unknown;
+  let coords: [number, number][] | undefined;
+  if (geom && typeof geom === "object" && geom !== null && "coordinates" in geom) {
+    const c = (geom as { coordinates: unknown }).coordinates;
+    if (Array.isArray(c) && c.length && Array.isArray(c[0])) {
+      coords = c as [number, number][];
+    }
+  } else if (typeof geom === "string" && geom.length > 0) {
+    coords = decodeGooglePolylineLngLat(geom);
+  }
+  if (!coords?.length) return null;
+
   return {
     geometry: {
       type: "LineString",
-      coordinates: coords as [number, number][],
+      coordinates: coords,
     },
     distance,
     duration,
   };
+}
+
+/** ORS returns `geometry` as a Google-encoded polyline string unless GeoJSON is requested; decode to [lng,lat][]. */
+function decodeGooglePolylineLngLat(encoded: string): [number, number][] {
+  const out: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < encoded.length) {
+    let b: number;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = result & 1 ? ~(result >> 1) : result >> 1;
+    lat += dlat;
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = result & 1 ? ~(result >> 1) : result >> 1;
+    lng += dlng;
+    out.push([lng / 1e5, lat / 1e5]);
+  }
+  return out;
 }
