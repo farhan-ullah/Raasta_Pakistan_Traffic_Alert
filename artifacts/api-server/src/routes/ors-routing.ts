@@ -61,9 +61,11 @@ type AvoidMultiPolygon = {
   coordinates: [number, number][][][];
 };
 
-function buildAvoidMultiPolygon(incidents: IncidentRow[]): AvoidMultiPolygon | null {
+/** `maxPolygons` = how many highest-priority incidents to buffer (capped by {@link MAX_AVOID_POLYGONS}). */
+function buildAvoidMultiPolygon(incidents: IncidentRow[], maxPolygons: number): AvoidMultiPolygon | null {
+  if (maxPolygons <= 0) return null;
   const sorted = [...incidents].sort((a, b) => conflictWeightHint(b) - conflictWeightHint(a));
-  const picked = sorted.slice(0, MAX_AVOID_POLYGONS);
+  const picked = sorted.slice(0, Math.min(maxPolygons, MAX_AVOID_POLYGONS));
   if (picked.length === 0) return null;
 
   const coordinates: [number, number][][][] = [];
@@ -94,41 +96,15 @@ async function orsPost(path: string, body: unknown, apiKey: string): Promise<Res
   }
 }
 
-/**
- * Returns an OpenRouteService route, or `null` if ORS is not configured / failed.
- * When there are **no** active incidents we still call ORS (no `avoid_polygons`) so the API
- * can report `routingBackend: "openrouteservice"` whenever the key works — otherwise every
- * empty-map test looked like “OSRM only”.
- */
-export async function fetchOrsRouteWithAvoidPolygons(
-  fromLat: number,
-  fromLng: number,
-  toLat: number,
-  toLng: number,
-  incidents: IncidentRow[],
-): Promise<OsrmCompatibleRoute | null> {
-  const apiKey = orsApiKey();
-  if (!apiKey) return null;
-
-  const avoid = buildAvoidMultiPolygon(incidents);
-  const baseBody: {
+async function executeOrsDirections(
+  baseBody: {
     coordinates: [number, number][];
     preference: string;
     units: string;
     options?: { avoid_polygons: AvoidMultiPolygon };
-  } = {
-    coordinates: [
-      [fromLng, fromLat],
-      [toLng, toLat],
-    ],
-    preference: "recommended",
-    units: "m",
-  };
-  if (avoid) {
-    baseBody.options = { avoid_polygons: avoid };
-  }
-
-  /** Prefer GeoJSON endpoint — returns LineString coordinates (no encoded polyline ambiguity). */
+  },
+  apiKey: string,
+): Promise<OsrmCompatibleRoute | null> {
   let res = await orsPost("/v2/directions/driving-car/geojson", baseBody, apiKey);
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
@@ -163,6 +139,56 @@ export async function fetchOrsRouteWithAvoidPolygons(
     return null;
   }
   return parsed;
+}
+
+/**
+ * Returns an OpenRouteService route, or `null` if ORS is not configured / all attempts failed.
+ * Retries with fewer avoid polygons (then plain ORS) when the graph is over-constrained — common
+ * for long trips with many large hazard disks.
+ */
+export async function fetchOrsRouteWithAvoidPolygons(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+  incidents: IncidentRow[],
+): Promise<OsrmCompatibleRoute | null> {
+  const apiKey = orsApiKey();
+  if (!apiKey) return null;
+
+  const baseCoords = {
+    coordinates: [
+      [fromLng, fromLat],
+      [toLng, toLat],
+    ] as [number, number][],
+    preference: "recommended",
+    units: "m",
+  };
+
+  /** Descending caps: full set → 4 → 2 → plain ORS (0). */
+  const caps =
+    incidents.length === 0
+      ? [0]
+      : [...new Set([MAX_AVOID_POLYGONS, 4, 2, 0])].sort((a, b) => b - a);
+
+  for (const cap of caps) {
+    const avoid = buildAvoidMultiPolygon(incidents, cap);
+    const baseBody = {
+      ...baseCoords,
+      ...(avoid ? { options: { avoid_polygons: avoid } } : {}),
+    };
+    const route = await executeOrsDirections(baseBody, apiKey);
+    if (route) {
+      if (incidents.length > 0 && cap < MAX_AVOID_POLYGONS) {
+        console.warn(
+          `[ORS] Route obtained with reduced avoidance (cap=${cap === 0 ? "none" : cap} polygons; full set failed or unparsable).`,
+        );
+      }
+      return route;
+    }
+  }
+
+  return null;
 }
 
 type OrsRoutesEnvelope = {
