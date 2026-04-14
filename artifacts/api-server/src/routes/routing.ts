@@ -8,7 +8,7 @@ const router: IRouter = Router();
 const OSRM_BASE = process.env["OSRM_BASE_URL"] ?? "https://router.project-osrm.org";
 
 /** Max extra OSRM calls for hazard-avoidance attempts (public OSRM is rate-limited). */
-const MAX_DETOUR_ATTEMPTS = 14;
+const MAX_DETOUR_ATTEMPTS = 22;
 
 const METERS_PER_DEG_LAT = 111_320;
 
@@ -141,31 +141,75 @@ function minDistanceToPolylineMeters(lat: number, lng: number, coords: [number, 
 type IncidentRow = typeof incidentsTable.$inferSelect;
 
 /**
- * Every active map incident (any type you add later, any severity low→critical) uses its
- * lat/lng as a hazard: corridor radius scales mainly with severity.
+ * Influence radius around each incident’s point coordinate.
+ * Blockages/closures are not pin-sized in real life: one reported point represents a road
+ * segment / zone, and OSRM’s line may pass offset from the marker — use wide buffers so the
+ * whole corridor is treated as affected unless a detour clears it.
  */
 function bufferMeters(inc: { type: string; severity: string }): number {
   const sev = (inc.severity || "medium").toLowerCase();
+  const t = (inc.type || "").toLowerCase();
+
+  if (t === "blockage") {
+    switch (sev) {
+      case "critical":
+        return 1_900;
+      case "high":
+        return 1_500;
+      case "medium":
+        return 1_200;
+      case "low":
+        return 950;
+      default:
+        return 1_250;
+    }
+  }
+  if (t === "vip_movement") {
+    switch (sev) {
+      case "critical":
+        return 1_600;
+      case "high":
+        return 1_300;
+      case "medium":
+        return 1_050;
+      case "low":
+        return 800;
+      default:
+        return 1_100;
+    }
+  }
+  if (t === "construction") {
+    switch (sev) {
+      case "critical":
+        return 1_350;
+      case "high":
+        return 1_100;
+      case "medium":
+        return 880;
+      case "low":
+        return 700;
+      default:
+        return 920;
+    }
+  }
+
   let base: number;
   switch (sev) {
     case "critical":
-      base = 480;
+      base = 520;
       break;
     case "high":
-      base = 380;
+      base = 420;
       break;
     case "medium":
-      base = 280;
+      base = 320;
       break;
     case "low":
-      base = 195;
+      base = 240;
       break;
     default:
-      base = 260;
+      base = 300;
   }
-  const t = (inc.type || "").toLowerCase();
-  if (t === "blockage" || t === "vip_movement") return Math.min(base + 45, 540);
-  if (t === "construction") return Math.min(base + 30, 520);
   return base;
 }
 
@@ -208,12 +252,52 @@ type Conflict = {
   lng: number;
 };
 
+/**
+ * Approximate a “zone” around a point: if the route passes near any sample, it conflicts.
+ * Helps when the map pin is off the road centerline or the closure spans along the road.
+ */
+const ZONE_SAMPLE_OFFSETS_M: { dn: number; de: number }[] = [
+  { dn: 0, de: 0 },
+  { dn: 280, de: 0 },
+  { dn: -280, de: 0 },
+  { dn: 0, de: 280 },
+  { dn: 0, de: -280 },
+  { dn: 200, de: 200 },
+  { dn: -200, de: 200 },
+  { dn: 200, de: -200 },
+  { dn: -200, de: -200 },
+];
+
+function offsetLatLng(lat: number, lng: number, dn: number, de: number): { lat: number; lng: number } {
+  return {
+    lat: lat + dn / METERS_PER_DEG_LAT,
+    lng: lng + de / metersPerDegLng(lat),
+  };
+}
+
 function findConflicts(coords: [number, number][], incidents: IncidentRow[]): Conflict[] {
   const out: Conflict[] = [];
+  const seen = new Set<number>();
+
   for (const inc of incidents) {
     const buf = bufferMeters(inc);
-    const d = minDistanceToPolylineMeters(inc.lat, inc.lng, coords);
-    if (d < buf) {
+    const t = (inc.type || "").toLowerCase();
+    const useZone = t === "blockage" || t === "construction" || t === "vip_movement";
+
+    const samples = useZone
+      ? ZONE_SAMPLE_OFFSETS_M.map(o => offsetLatLng(inc.lat, inc.lng, o.dn, o.de))
+      : [{ lat: inc.lat, lng: inc.lng }];
+
+    let hit = false;
+    for (const s of samples) {
+      const d = minDistanceToPolylineMeters(s.lat, s.lng, coords);
+      if (d < buf) {
+        hit = true;
+        break;
+      }
+    }
+    if (hit && !seen.has(inc.id)) {
+      seen.add(inc.id);
       out.push({
         id: inc.id,
         title: inc.title,
@@ -360,13 +444,14 @@ router.post(
       });
     };
 
-    const offsetsM = [350, 550, 800, 1100];
+    /** Perpendicular detour distance — must be large enough to clear wide blockage zones. */
+    const offsetsM = [450, 700, 950, 1300, 1700, 2200];
     const conflictsForDetour = sortConflictsBySeverity(findConflicts(polylineForDetours, incidents));
     const uniqueById = new Map<number, Conflict>();
     for (const c of conflictsForDetour) {
       if (!uniqueById.has(c.id)) uniqueById.set(c.id, c);
     }
-    const topHazards = [...uniqueById.values()].slice(0, 5);
+    const topHazards = [...uniqueById.values()].slice(0, 6);
 
     for (const c of topHazards) {
       if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
@@ -388,7 +473,7 @@ router.post(
     if (detourAttempts < MAX_DETOUR_ATTEMPTS && topHazards.length >= 2) {
       const c0 = topHazards[0]!;
       const c1 = topHazards[1]!;
-      for (const off of [550, 900]) {
+      for (const off of [700, 1100, 1600]) {
         if (detourAttempts >= MAX_DETOUR_ATTEMPTS) break;
         const v0 = detourWaypointLngLat(polylineForDetours, c0.lat, c0.lng, off);
         const v1 = detourWaypointLngLat(polylineForDetours, c1.lat, c1.lng, off);
@@ -402,10 +487,17 @@ router.post(
       }
     }
 
+    const compareAnalyzed = (a: Analyzed, b: Analyzed): number => {
+      const na = a.conflicts.length;
+      const nb = b.conflicts.length;
+      if (na !== nb) return na - nb;
+      if (a.score !== b.score) return a.score - b.score;
+      return a.route.duration - b.route.duration;
+    };
+
     let best = analyzed[0]!;
     for (const a of analyzed) {
-      if (a.score < best.score) best = a;
-      else if (a.score === best.score && a.route.duration < best.route.duration) best = a;
+      if (compareAnalyzed(a, best) < 0) best = a;
     }
 
     const recommendedIsAlternative = best.index !== 0 || best.source !== "osrm_direct";
