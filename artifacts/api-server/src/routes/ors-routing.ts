@@ -96,6 +96,23 @@ async function orsPost(path: string, body: unknown, apiKey: string): Promise<Res
   }
 }
 
+type OrsExecOk = { ok: true; route: OsrmCompatibleRoute };
+type OrsExecFail = { ok: false; reason: string };
+type OrsExecResult = OrsExecOk | OrsExecFail;
+
+async function orsReadErrorBody(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  if (!text.trim()) return `HTTP ${res.status}`;
+  try {
+    const j = JSON.parse(text) as { error?: { message?: string } | string };
+    if (j && typeof j.error === "object" && j.error?.message) return j.error.message;
+    if (typeof j.error === "string") return j.error;
+  } catch {
+    /* plain text */
+  }
+  return text.slice(0, 500);
+}
+
 async function executeOrsDirections(
   baseBody: {
     coordinates: [number, number][];
@@ -104,22 +121,22 @@ async function executeOrsDirections(
     options?: { avoid_polygons: AvoidMultiPolygon };
   },
   apiKey: string,
-): Promise<OsrmCompatibleRoute | null> {
+): Promise<OrsExecResult> {
   let res = await orsPost("/v2/directions/driving-car/geojson", baseBody, apiKey);
   if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    console.warn("[ORS] GeoJSON directions failed, trying default endpoint:", res.status, errText.slice(0, 300));
+    const err1 = await orsReadErrorBody(res);
+    console.warn("[ORS] GeoJSON directions failed, trying default endpoint:", res.status, err1.slice(0, 300));
     res = await orsPost("/v2/directions/driving-car", { ...baseBody, geometry: true }, apiKey);
   }
 
   if (!res.ok) {
-    const errText = await res.text().catch(() => "");
+    const err2 = await orsReadErrorBody(res);
     if (res.status === 401 || res.status === 403) {
-      console.warn("[ORS] Invalid API key or forbidden:", res.status, errText.slice(0, 200));
+      console.warn("[ORS] Invalid API key or forbidden:", res.status, err2.slice(0, 200));
     } else {
-      console.warn("[ORS] Directions request failed:", res.status, errText.slice(0, 400));
+      console.warn("[ORS] Directions request failed:", res.status, err2.slice(0, 400));
     }
-    return null;
+    return { ok: false, reason: `${res.status}: ${err2}` };
   }
 
   let raw: unknown;
@@ -127,24 +144,33 @@ async function executeOrsDirections(
     raw = await res.json();
   } catch (e) {
     console.warn("[ORS] Response was not JSON:", e);
-    return null;
+    return { ok: false, reason: `${res.status}: response was not valid JSON` };
   }
   const parsed = parseOrsDirectionsJson(raw);
   if (!parsed) {
+    const em =
+      raw && typeof raw === "object" && raw !== null && "error" in raw
+        ? (raw as { error?: { message?: string } }).error?.message
+        : undefined;
     const snippet =
       typeof raw === "object" && raw !== null
-        ? JSON.stringify(raw).slice(0, 900)
+        ? JSON.stringify(raw).slice(0, 600)
         : String(raw).slice(0, 200);
     console.warn("[ORS] Could not parse route geometry. Response snippet:", snippet);
-    return null;
+    return {
+      ok: false,
+      reason: em ? `ORS: ${em}` : "200: could not parse route geometry from ORS response",
+    };
   }
-  return parsed;
+  return { ok: true, route: parsed };
 }
 
 export type OrsFetchResult = {
   route: OsrmCompatibleRoute | null;
   /** `no_key` = OPENROUTESERVICE_API_KEY missing; `failed` = ORS returned errors / no route for all caps. */
   orsStatus: "ok" | "no_key" | "failed";
+  /** Last ORS HTTP/API message (safe to show in API responses). */
+  orsFailureHint?: string;
 };
 
 /**
@@ -160,6 +186,8 @@ export async function fetchOrsRouteWithAvoidPolygons(
 ): Promise<OrsFetchResult> {
   const apiKey = orsApiKey();
   if (!apiKey) return { route: null, orsStatus: "no_key" };
+
+  let lastFailureReason = "unknown";
 
   const baseCoords = {
     coordinates: [
@@ -177,7 +205,7 @@ export async function fetchOrsRouteWithAvoidPolygons(
   const caps =
     incidents.length === 0
       ? [0]
-      : [...new Set([MAX_AVOID_POLYGONS, 4, 2])].sort((a, b) => b - a);
+      : [...new Set([MAX_AVOID_POLYGONS, 4, 2, 1])].sort((a, b) => b - a);
 
   for (const cap of caps) {
     const avoid = buildAvoidMultiPolygon(incidents, cap);
@@ -185,18 +213,19 @@ export async function fetchOrsRouteWithAvoidPolygons(
       ...baseCoords,
       ...(avoid ? { options: { avoid_polygons: avoid } } : {}),
     };
-    const route = await executeOrsDirections(baseBody, apiKey);
-    if (route) {
+    const exec = await executeOrsDirections(baseBody, apiKey);
+    if (exec.ok) {
       if (incidents.length > 0 && cap < MAX_AVOID_POLYGONS) {
         console.warn(
           `[ORS] Route obtained with reduced avoidance (cap=${cap} polygons; full set failed or unparsable).`,
         );
       }
-      return { route, orsStatus: "ok" };
+      return { route: exec.route, orsStatus: "ok" };
     }
+    lastFailureReason = exec.reason;
   }
 
-  return { route: null, orsStatus: "failed" };
+  return { route: null, orsStatus: "failed", orsFailureHint: lastFailureReason };
 }
 
 type OrsRoutesEnvelope = {

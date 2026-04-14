@@ -662,8 +662,9 @@ router.post(
       toLng,
       incidents,
     ).catch(err => {
-      console.warn("[ORS] fetchOrsRouteWithAvoidPolygons threw:", err instanceof Error ? err.message : err);
-      return { route: null, orsStatus: "failed" as const };
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[ORS] fetchOrsRouteWithAvoidPolygons threw:", msg);
+      return { route: null, orsStatus: "failed" as const, orsFailureHint: `request error: ${msg}` };
     });
     const orsRoute = orsResult.route;
 
@@ -812,7 +813,12 @@ router.post(
     const orsFallbackReason =
       orsResult.orsStatus === "no_key"
         ? "OpenRouteService is not configured (OPENROUTESERVICE_API_KEY missing on the API server). Blockages are not avoided — add the key to the server .env and restart the API process."
-        : "OpenRouteService did not return a route (invalid key, quota, timeout, or over-constrained hazards). Showing OSRM map roads only — blockages may not be avoided.";
+        : [
+            "OpenRouteService did not return a route. Showing OSRM map roads only — blockages may not be avoided.",
+            orsResult.orsFailureHint ? `ORS: ${orsResult.orsFailureHint}` : null,
+          ]
+            .filter(Boolean)
+            .join(" ");
 
     res.json({
       primary: toSegment(primary.route, primary.conflicts),
