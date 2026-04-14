@@ -5,6 +5,7 @@
  * Requires OPENROUTESERVICE_API_KEY (free tier: https://openrouteservice.org/dev/#/signup).
  */
 import type { incidentsTable } from "@workspace/db";
+import { normalizeIncidentType, orsAvoidRadiusMeters } from "./incident-zones";
 
 const ORS_BASE = process.env["OPENROUTESERVICE_BASE_URL"]?.replace(/\/+$/, "") ?? "https://api.openrouteservice.org";
 const ORS_KEY = process.env["OPENROUTESERVICE_API_KEY"]?.trim();
@@ -16,24 +17,6 @@ const METERS_PER_DEG_LAT = 111_320;
 
 function metersPerDegLng(lat: number): number {
   return 111_320 * Math.cos((lat * Math.PI) / 180);
-}
-
-function normalizeType(type: string | null | undefined): string {
-  return (type || "").toLowerCase().trim().replace(/\s+/g, "_");
-}
-
-/** Radius of “blocked” disk around each incident for ORS (meters). */
-function avoidRadiusMeters(inc: { type: string; severity: string }): number {
-  const sev = (inc.severity || "medium").toLowerCase();
-  const t = normalizeType(inc.type);
-  let r = 500;
-  if (t === "blockage") r = 950;
-  else if (t === "vip_movement") r = 900;
-  else if (t === "construction") r = 800;
-  else if (t === "accident") r = 550;
-  if (sev === "critical") r *= 1.35;
-  else if (sev === "high") r *= 1.2;
-  return Math.min(2200, Math.max(350, Math.round(r)));
 }
 
 /** Approximate circle as a closed ring [lng,lat] for GeoJSON. */
@@ -56,7 +39,7 @@ function conflictWeightHint(inc: { type: string; severity: string }): number {
   if (sev === "critical") w = 120;
   else if (sev === "high") w = 90;
   else if (sev === "medium") w = 55;
-  const t = normalizeType(inc.type);
+  const t = normalizeIncidentType(inc.type);
   if (t === "blockage" || t === "vip_movement") w += 25;
   return w;
 }
@@ -82,7 +65,7 @@ function buildAvoidMultiPolygon(incidents: IncidentRow[]): AvoidMultiPolygon | n
 
   const coordinates: [number, number][][][] = [];
   for (const inc of picked) {
-    const r = avoidRadiusMeters(inc);
+    const r = orsAvoidRadiusMeters(inc);
     const ring = circleRingLngLat(inc.lat, inc.lng, r, 18);
     coordinates.push([ring]);
   }
@@ -142,6 +125,8 @@ export async function fetchOrsRouteWithAvoidPolygons(
     const errText = await res.text().catch(() => "");
     if (res.status === 401 || res.status === 403) {
       console.warn("[ORS] Invalid API key or forbidden:", res.status, errText.slice(0, 200));
+    } else {
+      console.warn("[ORS] Directions request failed:", res.status, errText.slice(0, 400));
     }
     return null;
   }

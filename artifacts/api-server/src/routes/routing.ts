@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, incidentsTable } from "@workspace/db";
 import { catchAsync } from "../lib/dbError";
+import { bufferMeters, normalizeIncidentType } from "./incident-zones";
 import { fetchOrsRouteWithAvoidPolygons } from "./ors-routing";
 
 const router: IRouter = Router();
@@ -204,83 +205,6 @@ function minDistanceToPolylineMeters(lat: number, lng: number, coords: [number, 
 }
 
 type IncidentRow = typeof incidentsTable.$inferSelect;
-
-function normalizeIncidentType(type: string | null | undefined): string {
-  return (type || "").toLowerCase().trim().replace(/\s+/g, "_");
-}
-
-/**
- * Influence radius around each incident’s point coordinate.
- * Blockages/closures are not pin-sized in real life: one reported point represents a road
- * segment / zone, and OSRM’s line may pass offset from the marker — use wide buffers so the
- * whole corridor is treated as affected unless a detour clears it.
- */
-function bufferMeters(inc: { type: string; severity: string }): number {
-  const sev = (inc.severity || "medium").toLowerCase();
-  const t = normalizeIncidentType(inc.type);
-
-  if (t === "blockage") {
-    switch (sev) {
-      case "critical":
-        return 1_900;
-      case "high":
-        return 1_500;
-      case "medium":
-        return 1_200;
-      case "low":
-        return 950;
-      default:
-        return 1_250;
-    }
-  }
-  if (t === "vip_movement") {
-    switch (sev) {
-      case "critical":
-        return 1_600;
-      case "high":
-        return 1_300;
-      case "medium":
-        return 1_050;
-      case "low":
-        return 800;
-      default:
-        return 1_100;
-    }
-  }
-  if (t === "construction") {
-    switch (sev) {
-      case "critical":
-        return 1_350;
-      case "high":
-        return 1_100;
-      case "medium":
-        return 880;
-      case "low":
-        return 700;
-      default:
-        return 920;
-    }
-  }
-
-  let base: number;
-  switch (sev) {
-    case "critical":
-      base = 520;
-      break;
-    case "high":
-      base = 420;
-      break;
-    case "medium":
-      base = 320;
-      break;
-    case "low":
-      base = 240;
-      break;
-    default:
-      base = 300;
-  }
-  return base;
-}
 
 /** Higher = detour / scoring priority (severity + type hint; unknown types still counted). */
 function conflictWeight(inc: { type: string; severity: string }): number {
@@ -555,6 +479,7 @@ router.post(
         primary: toSegment(primaryRoute, primaryConflicts),
         recommended: toSegment(orsRoute, orsConflicts),
         recommendedIsAlternative: true,
+        routingBackend: "openrouteservice" as const,
         textSuggestions: [...textSuggestions],
       });
       return;
@@ -698,11 +623,17 @@ router.post(
         "OpenStreetMap routing cannot block roads; we bias away from alerts. Obey police signs and local closures on the ground.",
       );
     }
+    if (!process.env["OPENROUTESERVICE_API_KEY"]?.trim() && incidents.length > 0) {
+      textSuggestions.add(
+        "Stronger avoidance around alerts: set OPENROUTESERVICE_API_KEY on the API server (OpenRouteService).",
+      );
+    }
 
     res.json({
       primary: toSegment(primary.route, primary.conflicts),
       recommended: toSegment(best.route, best.conflicts),
       recommendedIsAlternative,
+      routingBackend: "osrm" as const,
       textSuggestions: [...textSuggestions],
     });
   }),

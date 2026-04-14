@@ -5,11 +5,15 @@
  * Raasta Pakistan - Live Traffic & Offers Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { RoutePlanResponseRoutingBackend } from "./routePlanResponseRoutingBackend";
 import type { RouteSegment } from "./routeSegment";
 
 export interface RoutePlanResponse {
   primary: RouteSegment;
   recommended: RouteSegment;
   recommendedIsAlternative: boolean;
+  /** Which engine produced the **recommended** route: OpenRouteService (polygon avoidance) or OSRM-only (detours / alternatives).
+   */
+  routingBackend: RoutePlanResponseRoutingBackend;
   textSuggestions?: string[];
 }

@@ -1174,7 +1174,7 @@ components:
 
     RoutePlanResponse:
       type: object
-      required: [primary, recommended, recommendedIsAlternative]
+      required: [primary, recommended, recommendedIsAlternative, routingBackend]
       properties:
         primary:
           $ref: "#/components/schemas/RouteSegment"
@@ -1182,6 +1182,11 @@ components:
           $ref: "#/components/schemas/RouteSegment"
         recommendedIsAlternative:
           type: boolean
+        routingBackend:
+          type: string
+          enum: [openrouteservice, osrm]
+          description: |
+            Which engine produced the **recommended** route: OpenRouteService (polygon avoidance) or OSRM-only (detours / alternatives).
         textSuggestions:
           type: array
           items:

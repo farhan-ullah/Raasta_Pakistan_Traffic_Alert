@@ -7,6 +7,7 @@ import {
   ScrollView,
   LayoutAnimation,
   Platform,
+  ToastAndroid,
   UIManager,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -133,6 +134,13 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
       });
       setSummary(res);
       onRoutePlanned(res);
+      const engineToast =
+        res.routingBackend === "openrouteservice"
+          ? "Recommended: OpenRouteService (avoid zones)"
+          : "Recommended: OSRM (map roads only)";
+      if (Platform.OS === "android") {
+        ToastAndroid.show(engineToast, ToastAndroid.SHORT);
+      }
     } catch (e: unknown) {
       const msg =
         e && typeof e === "object" && "message" in e && typeof (e as { message: unknown }).message === "string"
@@ -231,6 +239,12 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
                 <Text style={{ fontWeight: "800" }}>Recommended: </Text>
                 {formatRouteDistance(rec.distanceMeters)} · {formatRouteDuration(rec.durationSeconds)}
               </Text>
+              <Text style={[styles.routePlannerHint, { color: colors.subtext, fontSize: 11 }]}>
+                Engine:{" "}
+                {summary.routingBackend === "openrouteservice"
+                  ? "OpenRouteService (hazard avoidance)"
+                  : "OSRM (best-effort detours)"}
+              </Text>
               {alt ? (
                 <Text style={[styles.routePlannerHint, { color: "#15803d" }]}>
                   Safer alternative selected — your first path crossed active high-risk or restricted areas in Raasta.
@@ -254,9 +268,11 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
         </ScrollView>
       ) : summary && rec ? (
         <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
-          <Text style={{ fontSize: 12, color: colors.subtext }} numberOfLines={1}>
+          <Text style={{ fontSize: 12, color: colors.subtext }} numberOfLines={2}>
             {formatRouteDistance(rec.distanceMeters)} · {formatRouteDuration(rec.durationSeconds)}
             {alt ? " · safer alt" : ""}
+            {" · "}
+            {summary.routingBackend === "openrouteservice" ? "ORS avoid" : "OSRM"}
           </Text>
         </View>
       ) : null}

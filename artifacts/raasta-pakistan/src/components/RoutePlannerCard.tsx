@@ -6,6 +6,7 @@ import {
   type GeocodePlace,
 } from "@workspace/api-client-react";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
+import { useToast } from "@/hooks/use-toast";
 import { Navigation2, ChevronDown, ChevronUp, X, Crosshair } from "lucide-react";
 
 function formatDuration(seconds: number): string {
@@ -42,6 +43,7 @@ function getCurrentPositionWeb(): Promise<{ lat: number; lng: number } | null> {
 }
 
 export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned }: Props) {
+  const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
   const [fromText, setFromText] = useState("");
   const [toText, setToText] = useState("");
@@ -126,6 +128,13 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
       });
       setSummary(res);
       onRoutePlanned(res);
+      toast({
+        title: "Route planned",
+        description:
+          res.routingBackend === "openrouteservice"
+            ? "Recommended line: OpenRouteService (hazard avoidance zones)."
+            : "Recommended line: OSRM (map roads; best-effort detours).",
+      });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not plan route.";
       setError(msg);
@@ -230,6 +239,12 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
                 <span className="font-bold">Recommended: </span>
                 {formatDistance(rec.distanceMeters)} · {formatDuration(rec.durationSeconds)}
               </p>
+              <p className="text-gray-500">
+                Engine:{" "}
+                {summary.routingBackend === "openrouteservice"
+                  ? "OpenRouteService (hazard avoidance)"
+                  : "OSRM (best-effort detours)"}
+              </p>
               {summary.recommendedIsAlternative ? (
                 <p className="text-[#15803d] font-medium">
                   Safer alternative — your first path crossed active alerts in Raasta.
@@ -251,6 +266,8 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
         <div className="px-3 pb-2 text-[11px] text-gray-600 border-t border-gray-100">
           {formatDistance(rec.distanceMeters)} · {formatDuration(rec.durationSeconds)}
           {summary.recommendedIsAlternative ? " · safer alt" : ""}
+          {" · "}
+          {summary.routingBackend === "openrouteservice" ? "ORS avoid" : "OSRM"}
         </div>
       ) : null}
     </div>

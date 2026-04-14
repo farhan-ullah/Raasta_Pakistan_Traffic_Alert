@@ -48,6 +48,7 @@ export * from "./routeGeoJsonLineString";
 export * from "./routeGeoJsonLineStringType";
 export * from "./routePlanRequest";
 export * from "./routePlanResponse";
+export * from "./routePlanResponseRoutingBackend";
 export * from "./routeSegment";
 export * from "./updateIncidentBody";
 export * from "./updateIncidentBodySeverity";

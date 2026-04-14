@@ -824,5 +824,10 @@ export const PlanRouteResponse = zod.object({
     ),
   }),
   recommendedIsAlternative: zod.boolean(),
+  routingBackend: zod
+    .enum(["openrouteservice", "osrm"])
+    .describe(
+      "Which engine produced the \*\*recommended\*\* route: OpenRouteService (polygon avoidance) or OSRM-only (detours \/ alternatives).\n",
+    ),
   textSuggestions: zod.array(zod.string()).optional(),
 });

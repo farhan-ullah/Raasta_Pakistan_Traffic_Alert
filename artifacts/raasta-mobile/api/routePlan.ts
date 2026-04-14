@@ -24,10 +24,14 @@ export type RouteSegment = {
   conflicts: RouteConflict[];
 };
 
+/** Mirrors OpenAPI `RoutePlanResponse.routingBackend`. */
+export type RoutePlanRoutingBackend = "openrouteservice" | "osrm";
+
 export type RoutePlanResponse = {
   primary: RouteSegment;
   recommended: RouteSegment;
   recommendedIsAlternative: boolean;
+  routingBackend: RoutePlanRoutingBackend;
   textSuggestions?: string[];
 };
 

@@ -434,10 +434,25 @@ export interface RouteSegment {
   conflicts: RouteConflict[];
 }
 
+/**
+ * Which engine produced the **recommended** route: OpenRouteService (polygon avoidance) or OSRM-only (detours / alternatives).
+
+ */
+export type RoutePlanResponseRoutingBackend =
+  (typeof RoutePlanResponseRoutingBackend)[keyof typeof RoutePlanResponseRoutingBackend];
+
+export const RoutePlanResponseRoutingBackend = {
+  openrouteservice: "openrouteservice",
+  osrm: "osrm",
+} as const;
+
 export interface RoutePlanResponse {
   primary: RouteSegment;
   recommended: RouteSegment;
   recommendedIsAlternative: boolean;
+  /** Which engine produced the **recommended** route: OpenRouteService (polygon avoidance) or OSRM-only (detours / alternatives).
+   */
+  routingBackend: RoutePlanResponseRoutingBackend;
   textSuggestions?: string[];
 }
 
