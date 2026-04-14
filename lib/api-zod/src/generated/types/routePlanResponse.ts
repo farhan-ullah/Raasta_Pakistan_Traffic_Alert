@@ -20,5 +20,12 @@ along the straight-line corridor (not only near A or B). Suggests the user may p
 the drawn polyline remains a best-effort suggestion.
  */
   betweenEndpointsAlert?: string;
+  /** Present when **routingBackend** is `osrm` because OpenRouteService did not produce a route
+(missing API key on server, or ORS error / no solution). Explains why hazard avoidance is not active.
+ */
+  orsFallbackReason?: string;
+  /** Optional detail when ORS ran but the recommended line is still OSRM (e.g. OSRM detour had fewer hazard crossings).
+   */
+  routingBackendNote?: string;
   textSuggestions?: string[];
 }

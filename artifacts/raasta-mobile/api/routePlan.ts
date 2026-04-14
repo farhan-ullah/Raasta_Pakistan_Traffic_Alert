@@ -34,6 +34,10 @@ export type RoutePlanResponse = {
   routingBackend: RoutePlanRoutingBackend;
   /** Hazards between start & destination along the direct corridor — consider an alternative road. */
   betweenEndpointsAlert?: string;
+  /** Why ORS did not drive the line (only when routingBackend is osrm and ORS never returned a route). */
+  orsFallbackReason?: string;
+  /** ORS ran but recommended is OSRM (e.g. detour had fewer hazard crossings). */
+  routingBackendNote?: string;
   textSuggestions?: string[];
 };
 

@@ -4,7 +4,7 @@ import { db, incidentsTable } from "@workspace/db";
 import { catchAsync } from "../lib/dbError";
 import { isInPakistan, whereIncidentInPakistan } from "../lib/pakistan-geo";
 import { bufferMeters, normalizeIncidentType } from "./incident-zones";
-import { fetchOrsRouteWithAvoidPolygons } from "./ors-routing";
+import { fetchOrsRouteWithAvoidPolygons, type OrsFetchResult } from "./ors-routing";
 
 const router: IRouter = Router();
 
@@ -655,10 +655,17 @@ router.post(
       conflicts,
     });
 
-    const orsRoute = await fetchOrsRouteWithAvoidPolygons(fromLat, fromLng, toLat, toLng, incidents).catch(err => {
+    const orsResult: OrsFetchResult = await fetchOrsRouteWithAvoidPolygons(
+      fromLat,
+      fromLng,
+      toLat,
+      toLng,
+      incidents,
+    ).catch(err => {
       console.warn("[ORS] fetchOrsRouteWithAvoidPolygons threw:", err instanceof Error ? err.message : err);
-      return null;
+      return { route: null, orsStatus: "failed" as const };
     });
+    const orsRoute = orsResult.route;
 
     if (orsRoute) {
       let osrmRoutes: OsrmRoute[];
@@ -737,11 +744,17 @@ router.post(
       const recommendedIsAlternative =
         routingBackend === "openrouteservice" ? true : bestSource !== "osrm_direct";
 
+      const routingBackendNote =
+        routingBackend === "osrm" && orsRoute
+          ? "OpenRouteService ran, but the green line is OSRM — it had fewer crossings of mapped hazard zones than the ORS line for this trip."
+          : undefined;
+
       res.json({
         primary: toSegment(primaryRoute, primaryConflicts),
         recommended: toSegment(recommendedRoute, recommendedConflicts),
         recommendedIsAlternative,
         routingBackend,
+        ...(routingBackendNote ? { routingBackendNote } : {}),
         ...(betweenAlert ? { betweenEndpointsAlert: betweenAlert } : {}),
         textSuggestions: mergeTextSuggestions(betweenAlert, textSuggestions),
       });
@@ -796,11 +809,17 @@ router.post(
       );
     }
 
+    const orsFallbackReason =
+      orsResult.orsStatus === "no_key"
+        ? "OpenRouteService is not configured (OPENROUTESERVICE_API_KEY missing on the API server). Blockages are not avoided — add the key to the server .env and restart the API process."
+        : "OpenRouteService did not return a route (invalid key, quota, timeout, or over-constrained hazards). Showing OSRM map roads only — blockages may not be avoided.";
+
     res.json({
       primary: toSegment(primary.route, primary.conflicts),
       recommended: toSegment(best.route, best.conflicts),
       recommendedIsAlternative,
       routingBackend: "osrm" as const,
+      orsFallbackReason,
       ...(betweenAlert ? { betweenEndpointsAlert: betweenAlert } : {}),
       textSuggestions: mergeTextSuggestions(betweenAlert, textSuggestions),
     });

@@ -137,9 +137,15 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
       const engineToast =
         res.routingBackend === "openrouteservice"
           ? "Recommended: OpenRouteService (avoid zones)"
-          : "Recommended: OSRM (map roads only)";
+          : res.orsFallbackReason
+            ? res.orsFallbackReason.length > 220
+              ? `${res.orsFallbackReason.slice(0, 217)}…`
+              : res.orsFallbackReason
+            : res.routingBackendNote
+              ? res.routingBackendNote
+              : "Recommended: OSRM (map roads only)";
       if (Platform.OS === "android") {
-        ToastAndroid.show(engineToast, ToastAndroid.SHORT);
+        ToastAndroid.show(engineToast, res.orsFallbackReason ? ToastAndroid.LONG : ToastAndroid.SHORT);
       }
     } catch (e: unknown) {
       const msg =

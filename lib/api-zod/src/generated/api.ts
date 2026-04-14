@@ -835,5 +835,17 @@ export const PlanRouteResponse = zod.object({
     .describe(
       "Present when a blockage, VIP movement, or construction pin falls between start and destination\nalong the straight-line corridor (not only near A or B). Suggests the user may pick an alternative road;\nthe drawn polyline remains a best-effort suggestion.\n",
     ),
+  orsFallbackReason: zod
+    .string()
+    .optional()
+    .describe(
+      "Present when \*\*routingBackend\*\* is `osrm` because OpenRouteService did not produce a route\n(missing API key on server, or ORS error \/ no solution). Explains why hazard avoidance is not active.\n",
+    ),
+  routingBackendNote: zod
+    .string()
+    .optional()
+    .describe(
+      "Optional detail when ORS ran but the recommended line is still OSRM (e.g. OSRM detour had fewer hazard crossings).\n",
+    ),
   textSuggestions: zod.array(zod.string()).optional(),
 });

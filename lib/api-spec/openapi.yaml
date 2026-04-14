@@ -1193,6 +1193,15 @@ components:
             Present when a blockage, VIP movement, or construction pin falls between start and destination
             along the straight-line corridor (not only near A or B). Suggests the user may pick an alternative road;
             the drawn polyline remains a best-effort suggestion.
+        orsFallbackReason:
+          type: string
+          description: |
+            Present when **routingBackend** is `osrm` because OpenRouteService did not produce a route
+            (missing API key on server, or ORS error / no solution). Explains why hazard avoidance is not active.
+        routingBackendNote:
+          type: string
+          description: |
+            Optional detail when ORS ran but the recommended line is still OSRM (e.g. OSRM detour had fewer hazard crossings).
         textSuggestions:
           type: array
           items:

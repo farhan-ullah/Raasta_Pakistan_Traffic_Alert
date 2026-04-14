@@ -133,7 +133,11 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
         description:
           res.routingBackend === "openrouteservice"
             ? "Recommended line: OpenRouteService (hazard avoidance zones)."
-            : "Recommended line: OSRM (map roads; best-effort detours).",
+            : res.orsFallbackReason
+              ? res.orsFallbackReason
+              : res.routingBackendNote
+                ? res.routingBackendNote
+                : "Recommended line: OSRM (map roads; best-effort detours).",
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not plan route.";

@@ -141,10 +141,15 @@ async function executeOrsDirections(
   return parsed;
 }
 
+export type OrsFetchResult = {
+  route: OsrmCompatibleRoute | null;
+  /** `no_key` = OPENROUTESERVICE_API_KEY missing; `failed` = ORS returned errors / no route for all caps. */
+  orsStatus: "ok" | "no_key" | "failed";
+};
+
 /**
- * Returns an OpenRouteService route, or `null` if ORS is not configured / all attempts failed.
- * Retries with fewer avoid polygons (then plain ORS) when the graph is over-constrained — common
- * for long trips with many large hazard disks.
+ * Returns an OpenRouteService route, or `orsStatus` explaining why not.
+ * Retries with fewer avoid polygons when the graph is over-constrained.
  */
 export async function fetchOrsRouteWithAvoidPolygons(
   fromLat: number,
@@ -152,9 +157,9 @@ export async function fetchOrsRouteWithAvoidPolygons(
   toLat: number,
   toLng: number,
   incidents: IncidentRow[],
-): Promise<OsrmCompatibleRoute | null> {
+): Promise<OrsFetchResult> {
   const apiKey = orsApiKey();
-  if (!apiKey) return null;
+  if (!apiKey) return { route: null, orsStatus: "no_key" };
 
   const baseCoords = {
     coordinates: [
@@ -187,11 +192,11 @@ export async function fetchOrsRouteWithAvoidPolygons(
           `[ORS] Route obtained with reduced avoidance (cap=${cap} polygons; full set failed or unparsable).`,
         );
       }
-      return route;
+      return { route, orsStatus: "ok" };
     }
   }
 
-  return null;
+  return { route: null, orsStatus: "failed" };
 }
 
 type OrsRoutesEnvelope = {
