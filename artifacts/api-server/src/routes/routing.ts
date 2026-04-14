@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, incidentsTable } from "@workspace/db";
 import { catchAsync } from "../lib/dbError";
+import { fetchOrsRouteWithAvoidPolygons } from "./ors-routing";
 
 const router: IRouter = Router();
 
@@ -504,6 +505,61 @@ router.post(
 
     const incidents = await db.select().from(incidentsTable).where(eq(incidentsTable.status, "active"));
 
+    const toSegment = (r: OsrmRoute, conflicts: Conflict[]) => ({
+      geometry: {
+        type: "LineString" as const,
+        coordinates: r.geometry.coordinates,
+      },
+      distanceMeters: r.distance,
+      durationSeconds: r.duration,
+      conflicts,
+    });
+
+    const orsRoute = await fetchOrsRouteWithAvoidPolygons(fromLat, fromLng, toLat, toLng, incidents).catch(
+      () => null,
+    );
+
+    if (orsRoute) {
+      let osrmRoutes: OsrmRoute[];
+      try {
+        osrmRoutes = await fetchOsrmRoutes(fromLat, fromLng, toLat, toLng);
+      } catch (e) {
+        res.status(502).json({
+          error: e instanceof Error ? e.message : "Routing service unavailable",
+        });
+        return;
+      }
+      const primaryRoute = osrmRoutes[0]!;
+      const primaryCoords = primaryRoute.geometry.coordinates as [number, number][];
+      const primaryConflicts = findConflicts(primaryCoords, incidents);
+      const orsCoords = orsRoute.geometry.coordinates as [number, number][];
+      const orsConflicts = findConflicts(orsCoords, incidents);
+
+      const textSuggestions = new Set<string>();
+      for (const c of primaryConflicts) {
+        const row = incidents.find(i => i.id === c.id);
+        if (row?.alternateRoutes?.length) {
+          for (const line of row.alternateRoutes) {
+            if (line?.trim()) textSuggestions.add(line.trim());
+          }
+        }
+      }
+      textSuggestions.add("Recommended route avoids reported hazard areas (OpenRouteService).");
+      if (orsConflicts.length > 0) {
+        textSuggestions.add(
+          "OpenStreetMap routing cannot block roads; we bias away from alerts. Obey police signs and local closures on the ground.",
+        );
+      }
+
+      res.json({
+        primary: toSegment(primaryRoute, primaryConflicts),
+        recommended: toSegment(orsRoute, orsConflicts),
+        recommendedIsAlternative: true,
+        textSuggestions: [...textSuggestions],
+      });
+      return;
+    }
+
     let osrmRoutes: OsrmRoute[];
     try {
       osrmRoutes = await fetchOsrmRoutes(fromLat, fromLng, toLat, toLng);
@@ -642,16 +698,6 @@ router.post(
         "OpenStreetMap routing cannot block roads; we bias away from alerts. Obey police signs and local closures on the ground.",
       );
     }
-
-    const toSegment = (r: OsrmRoute, conflicts: Conflict[]) => ({
-      geometry: {
-        type: "LineString" as const,
-        coordinates: r.geometry.coordinates,
-      },
-      distanceMeters: r.distance,
-      durationSeconds: r.duration,
-      conflicts,
-    });
 
     res.json({
       primary: toSegment(primary.route, primary.conflicts),

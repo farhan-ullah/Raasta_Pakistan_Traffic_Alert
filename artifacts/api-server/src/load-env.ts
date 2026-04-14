@@ -1,0 +1,10 @@
+/**
+ * Load `artifacts/api-server/.env` before any route reads `process.env`.
+ * Resolved from this file’s location so it works when cwd is not the package root.
+ */
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(here, "..", ".env") });
