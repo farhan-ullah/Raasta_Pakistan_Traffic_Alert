@@ -22,6 +22,20 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+async function getCurrentPositionCoords(): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== "granted") {
+      const { status: s2 } = await Location.requestForegroundPermissionsAsync();
+      if (s2 !== "granted") return null;
+    }
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  } catch {
+    return null;
+  }
+}
+
 export type RoutePlannerCardProps = {
   /** Distance from top of screen (e.g. below header). */
   topOffset: number;
@@ -94,19 +108,26 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
       setError("Choose destination (point B) from the suggestions.");
       return;
     }
-    if (!fromPlace) {
-      setError(
-        fromLocating
-          ? "Getting your location for point A…"
-          : "Allow location, or search for a start point.",
-      );
-      return;
-    }
     setLoading(true);
     try {
+      let start = fromPlace;
+      if (!start) {
+        if (fromUserEdited) {
+          setError("Choose a start point (point A) from the suggestions.");
+          return;
+        }
+        const pos = await getCurrentPositionCoords();
+        if (!pos) {
+          setError("Could not get your location. Allow access or search for a start point.");
+          return;
+        }
+        start = currentLocationPlace(pos.lat, pos.lng);
+        setFromPlace(start);
+        setFromText("Current location");
+      }
       const res = await planRoute({
-        fromLat: fromPlace.lat,
-        fromLng: fromPlace.lng,
+        fromLat: start.lat,
+        fromLng: start.lng,
         toLat: toPlace.lat,
         toLng: toPlace.lng,
       });
@@ -126,7 +147,7 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
 
   const rec = summary?.recommended;
   const alt = summary?.recommendedIsAlternative;
-  const canPlan = !!fromPlace && !!toPlace && !loading;
+  const canPlan = !!toPlace && !loading;
 
   return (
     <View style={[styles.routePlannerWrap, { top: topOffset, backgroundColor: colors.card, borderColor: colors.border }]}>

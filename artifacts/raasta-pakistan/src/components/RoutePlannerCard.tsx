@@ -26,6 +26,21 @@ type Props = {
   onRoutePlanned: (plan: RoutePlanResponse | null) => void;
 };
 
+/** Fresh GPS for planning when point A is implicit (current location) but not yet in state. */
+function getCurrentPositionWeb(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise(resolve => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, maximumAge: 30_000, timeout: 30_000 },
+    );
+  });
+}
+
 export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [fromText, setFromText] = useState("");
@@ -86,19 +101,26 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
       setError("Choose destination (point B) from the suggestions.");
       return;
     }
-    if (!fromPlace) {
-      setError(
-        fromLocating
-          ? "Getting your location for point A…"
-          : "Allow location access, or search for a start point below.",
-      );
-      return;
-    }
     setLoading(true);
     try {
+      let start = fromPlace;
+      if (!start) {
+        if (fromUserEdited) {
+          setError("Choose a start point (point A) from the suggestions.");
+          return;
+        }
+        const pos = await getCurrentPositionWeb();
+        if (!pos) {
+          setError("Could not get your location. Allow access or search for a start point below.");
+          return;
+        }
+        start = currentLocationPlace(pos.lat, pos.lng);
+        setFromPlace(start);
+        setFromText("Current location");
+      }
       const res = await planRoute({
-        fromLat: fromPlace.lat,
-        fromLng: fromPlace.lng,
+        fromLat: start.lat,
+        fromLng: start.lng,
         toLat: toPlace.lat,
         toLng: toPlace.lng,
       });
@@ -114,7 +136,8 @@ export function RoutePlannerCard({ topClassName = "top-[4.5rem]", onRoutePlanned
   };
 
   const rec = summary?.recommended;
-  const canPlan = !!fromPlace && !!toPlace && !loading;
+  /** Point A is implicit (current location); only B must be chosen from search. */
+  const canPlan = !!toPlace && !loading;
 
   return (
     <div
