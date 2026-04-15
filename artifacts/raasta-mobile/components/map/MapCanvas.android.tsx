@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   MapView,
   Camera,
   UserLocation,
+  PointAnnotation,
+  type PointAnnotationRef,
   MarkerView,
   ShapeSource,
   LineLayer,
@@ -23,7 +26,14 @@ import { MapScreenHeader, MAP_HEADER_OFFSET_BELOW_SAFE } from "./MapScreenHeader
 import { FeaturedOffersStrip } from "@/components/FeaturedOffersStrip";
 import { RoutePlannerCard } from "./RoutePlannerCard";
 import { boundsCenterZoom, lineStringFeature } from "./routeMapUtils";
-import { FOLLOW_ZOOM, useNavigationSession, type NavDestination } from "@/hooks/useNavigationSession";
+import {
+  FOLLOW_ZOOM,
+  useNavigationSession,
+  type NavDestination,
+  type NavUserSample,
+} from "@/hooks/useNavigationSession";
+import { useSmoothedNavPose } from "@/hooks/useSmoothedNavPose";
+import { NavigationVehiclePuck } from "./NavigationVehiclePuck";
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: "#dc2626",
@@ -71,6 +81,7 @@ export default function MapCanvas() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraRef>(null);
+  const navPuckRef = useRef<PointAnnotationRef>(null);
   const [selected, setSelected] = useState<{
     id: string;
     title: string;
@@ -83,8 +94,32 @@ export default function MapCanvas() {
   const [locationGranted, setLocationGranted] = useState(false);
   const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
   const [navDestination, setNavDestination] = useState<NavDestination | null>(null);
+  const [navSample, setNavSample] = useState<NavUserSample | null>(null);
 
   const navigationActive = navDestination !== null;
+
+  const onUserNavigationSample = useCallback((s: NavUserSample) => {
+    setNavSample(s);
+  }, []);
+
+  useEffect(() => {
+    if (!navigationActive) setNavSample(null);
+  }, [navigationActive]);
+
+  const smoothNavTarget =
+    navigationActive && navSample
+      ? {
+          latitude: navSample.latitude,
+          longitude: navSample.longitude,
+          headingDeg: navSample.headingDeg,
+        }
+      : null;
+  const smoothedNavPose = useSmoothedNavPose(navigationActive, smoothNavTarget);
+
+  useEffect(() => {
+    if (!navigationActive || !smoothedNavPose) return;
+    navPuckRef.current?.refresh();
+  }, [navigationActive, smoothedNavPose]);
 
   const onFollowCoordinate = useCallback((coord: [number, number]) => {
     cameraRef.current?.setCamera({
@@ -100,7 +135,37 @@ export default function MapCanvas() {
     destination: navDestination,
     onReplanned: setRoutePlan,
     onFollowCoordinate,
+    onUserNavigationSample: onUserNavigationSample,
   });
+
+  const recenterOnUserOrCity = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      cameraRef.current?.setCamera({
+        centerCoordinate: ISLAMABAD_CENTER,
+        zoomLevel: INITIAL_ZOOM,
+        animationDuration: 800,
+        animationMode: "easeTo",
+      });
+      return;
+    }
+    try {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      cameraRef.current?.setCamera({
+        centerCoordinate: [pos.coords.longitude, pos.coords.latitude],
+        zoomLevel: INITIAL_ZOOM,
+        animationDuration: 900,
+        animationMode: "easeTo",
+      });
+    } catch {
+      cameraRef.current?.setCamera({
+        centerCoordinate: ISLAMABAD_CENTER,
+        zoomLevel: INITIAL_ZOOM,
+        animationDuration: 800,
+        animationMode: "easeTo",
+      });
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -200,17 +265,32 @@ export default function MapCanvas() {
             zoomLevel: INITIAL_ZOOM,
           }}
         />
-        <UserLocation visible={locationGranted} />
+        <UserLocation
+          visible={locationGranted && !navigationActive}
+          renderMode="native"
+          androidRenderMode="normal"
+        />
 
         {routePlan?.recommendedIsAlternative ? (
           <ShapeSource id="raasta_route_primary" shape={lineStringFeature(routePlan.primary.geometry)}>
+            <LineLayer
+              id="raasta_route_primary_glow"
+              style={{
+                lineColor: "rgba(148,163,184,0.45)",
+                lineWidth: 12,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
             <LineLayer
               id="raasta_route_primary_line"
               style={{
                 lineColor: "#94a3b8",
                 lineWidth: 4,
-                lineDasharray: [1, 2],
-                lineOpacity: 0.75,
+                lineDasharray: [2, 4],
+                lineOpacity: 0.92,
+                lineCap: "round",
+                lineJoin: "round",
               }}
             />
           </ShapeSource>
@@ -219,15 +299,57 @@ export default function MapCanvas() {
         {routePlan ? (
           <ShapeSource id="raasta_route_recommended" shape={lineStringFeature(routePlan.recommended.geometry)}>
             <LineLayer
-              id="raasta_route_recommended_line"
+              id="raasta_route_recommended_glow"
               style={{
-                lineColor: "#15803d",
-                lineWidth: 5,
+                lineColor: "rgba(5,46,22,0.5)",
+                lineWidth: 18,
+                lineBlur: 1.2,
                 lineCap: "round",
                 lineJoin: "round",
               }}
             />
+            <LineLayer
+              id="raasta_route_recommended_mid"
+              style={{
+                lineColor: "rgba(190,242,190,0.95)",
+                lineWidth: 9,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+            <LineLayer
+              id="raasta_route_recommended_core"
+              style={{
+                lineColor: "#15803d",
+                lineWidth: 5.5,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+            <LineLayer
+              id="raasta_route_recommended_highlight"
+              style={{
+                lineColor: "rgba(74,222,128,0.95)",
+                lineWidth: 2,
+                lineCap: "round",
+                lineJoin: "round",
+                lineOpacity: 0.95,
+              }}
+            />
           </ShapeSource>
+        ) : null}
+
+        {navigationActive && smoothedNavPose ? (
+          <PointAnnotation
+            ref={navPuckRef}
+            id="raasta_navigation_vehicle"
+            coordinate={[smoothedNavPose.longitude, smoothedNavPose.latitude]}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View collapsable={false}>
+              <NavigationVehiclePuck headingDeg={smoothedNavPose.headingDeg} />
+            </View>
+          </PointAnnotation>
         ) : null}
 
         {routeStart && routeEnd ? (
@@ -336,35 +458,55 @@ export default function MapCanvas() {
           <ActivityIndicator color="#25a244" size="small" />
         ) : (
           <View style={styles.summaryInner}>
-            <View style={styles.statBlock}>
-              <Text style={[styles.statNum2, { color: "#ef4444" }]}>{criticalCount}</Text>
-              <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Critical</Text>
+            <View style={styles.summaryCell}>
+              <View style={styles.statBlock}>
+                <Text style={[styles.statNum2, { color: "#ef4444" }]}>{criticalCount}</Text>
+                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Critical</Text>
+              </View>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.statBlock}>
-              <Text style={[styles.statNum2, { color: "#25a244" }]}>{activeCount}</Text>
-              <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Active</Text>
+            <View style={styles.summaryCell}>
+              <View style={styles.statBlock}>
+                <Text style={[styles.statNum2, { color: "#25a244" }]}>{activeCount}</Text>
+                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Active</Text>
+              </View>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn}>
-              <Feather name="refresh-cw" size={16} color="#25a244" />
-            </TouchableOpacity>
+            <View style={styles.summaryCell}>
+              <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn} accessibilityRole="button" accessibilityLabel="Refresh incidents">
+                <Feather name="refresh-cw" size={14} color="#15803d" />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
 
       <TouchableOpacity
-        style={[styles.myLocBtn, { bottom: insets.bottom + 165, backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() =>
-          cameraRef.current?.setCamera({
-            centerCoordinate: ISLAMABAD_CENTER,
-            zoomLevel: INITIAL_ZOOM,
-            animationDuration: 800,
-            animationMode: "easeTo",
-          })
-        }
+        style={[styles.myLocBtn, { bottom: insets.bottom + 156 }]}
+        onPress={() => void recenterOnUserOrCity()}
+        activeOpacity={0.9}
+        accessibilityLabel="Center map on your location"
       >
-        <Feather name="navigation" size={18} color="#25a244" />
+        <LinearGradient
+          colors={["#ecfccb", "#d9f99d", "#bbf7d0"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={["#4ade80", "#16a34a", "#14532d"]}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 2,
+            borderColor: "rgba(255,255,255,0.9)",
+          }}
+        >
+          <Feather name="crosshair" size={17} color="#fff" />
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );

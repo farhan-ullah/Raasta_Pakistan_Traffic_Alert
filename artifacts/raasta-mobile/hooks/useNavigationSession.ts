@@ -9,9 +9,19 @@ import {
 
 export const FOLLOW_ZOOM = 17;
 const CAMERA_THROTTLE_MS = 2000;
+const CAMERA_THROTTLE_NAV_MS = 1400;
 const PERIODIC_REPLAN_MS = 120_000;
 
 export type NavDestination = { lat: number; lng: number };
+
+/** Live sample for the navigation vehicle puck (high frequency; not camera-throttled). */
+export type NavUserSample = {
+  latitude: number;
+  longitude: number;
+  /** Degrees clockwise from north; smoothed fallback if GPS omits heading. */
+  headingDeg: number;
+  speedMps: number | null;
+};
 
 /**
  * Google Maps–style navigation: follow user, re-fetch route from current GPS → destination
@@ -25,10 +35,20 @@ export function useNavigationSession(options: {
   onFollowCoordinate?: (coord: [number, number]) => void;
   /** iOS: region center */
   onFollowRegion?: (lat: number, lng: number) => void;
+  /** Every GPS tick while navigating — for vehicle marker & bearing (independent of camera throttle). */
+  onUserNavigationSample?: (sample: NavUserSample) => void;
 }) {
-  const { active, destination, onReplanned, onFollowCoordinate, onFollowRegion } = options;
+  const {
+    active,
+    destination,
+    onReplanned,
+    onFollowCoordinate,
+    onFollowRegion,
+    onUserNavigationSample,
+  } = options;
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const lastCameraAt = useRef(0);
+  const lastHeadingDegRef = useRef(0);
   const periodicRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const prevAppStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -53,9 +73,10 @@ export function useNavigationSession(options: {
   }, [destination, onReplanned]);
 
   const maybeMoveCamera = useCallback(
-    (lat: number, lng: number) => {
+    (lat: number, lng: number, navigating: boolean) => {
       const now = Date.now();
-      if (now - lastCameraAt.current < CAMERA_THROTTLE_MS) return;
+      const minMs = navigating ? CAMERA_THROTTLE_NAV_MS : CAMERA_THROTTLE_MS;
+      if (now - lastCameraAt.current < minMs) return;
       lastCameraAt.current = now;
       onFollowCoordinate?.([lng, lat]);
       onFollowRegion?.(lat, lng);
@@ -101,11 +122,23 @@ export function useNavigationSession(options: {
       const sub = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
-          distanceInterval: 15,
-          timeInterval: 2000,
+          distanceInterval: 6,
+          timeInterval: 900,
         },
         loc => {
-          maybeMoveCamera(loc.coords.latitude, loc.coords.longitude);
+          const { latitude, longitude, heading, speed } = loc.coords;
+          let headingDeg = lastHeadingDegRef.current;
+          if (typeof heading === "number" && !Number.isNaN(heading) && heading >= 0) {
+            lastHeadingDegRef.current = heading;
+            headingDeg = heading;
+          }
+          onUserNavigationSample?.({
+            latitude,
+            longitude,
+            headingDeg,
+            speedMps: speed != null && !Number.isNaN(speed) ? speed : null,
+          });
+          maybeMoveCamera(latitude, longitude, true);
         },
       );
       if (cancelled) {
@@ -120,7 +153,11 @@ export function useNavigationSession(options: {
       watchRef.current?.remove();
       watchRef.current = null;
     };
-  }, [active, destination?.lat, destination?.lng, maybeMoveCamera]);
+  }, [active, destination?.lat, destination?.lng, maybeMoveCamera, onUserNavigationSample]);
+
+  useEffect(() => {
+    if (!active) lastHeadingDegRef.current = 0;
+  }, [active]);
 
   /* Replan when returning from background or a phone call (inactive → active). */
   useEffect(() => {

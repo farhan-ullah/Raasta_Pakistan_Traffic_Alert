@@ -49,20 +49,26 @@ export default function WebMapFallback({
       <MapScreenHeader subtitle="Islamabad live traffic · list view" />
 
       <View style={[styles.statsBar, { backgroundColor: colors.card, borderColor: colors.border }, floatShadow]}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statNum, { color: "#ef4444" }]}>{criticalCount}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Critical</Text>
+        <View style={styles.statCol}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statNum, { color: "#ef4444" }]}>{criticalCount}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Critical</Text>
+          </View>
         </View>
         <View style={[styles.statDiv, { backgroundColor: colors.border }]} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNum, { color: "#25a244" }]}>{activeCount}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Active</Text>
+        <View style={styles.statCol}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statNum, { color: "#25a244" }]}>{activeCount}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Active</Text>
+          </View>
         </View>
         <View style={[styles.statDiv, { backgroundColor: colors.border }]} />
-        <TouchableOpacity style={styles.statItem} onPress={() => refetch()}>
-          <Feather name="refresh-cw" size={18} color="#25a244" />
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Refresh</Text>
-        </TouchableOpacity>
+        <View style={styles.statCol}>
+          <TouchableOpacity style={styles.statItem} onPress={() => refetch()} accessibilityRole="button" accessibilityLabel="Refresh">
+            <Feather name="refresh-cw" size={16} color="#15803d" />
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.mapPlaceholder, { backgroundColor: colors.muted }]}>
@@ -114,18 +120,24 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   statsBar: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingVertical: 14,
+    alignItems: "stretch",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     marginHorizontal: 16,
     marginTop: -6,
     borderRadius: 18,
     borderWidth: 1,
   },
-  statItem: { alignItems: "center", gap: 3 },
-  statNum: { fontSize: 22, fontWeight: "800" as const },
-  statLabel: { fontSize: 10, fontWeight: "700" as const },
-  statDiv: { width: 1, height: 36 },
+  statCol: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statItem: { alignItems: "center", gap: 2 },
+  statNum: { fontSize: 20, fontWeight: "800" as const },
+  statLabel: { fontSize: 9, fontWeight: "800" as const, textTransform: "uppercase" as const, letterSpacing: 0.4 },
+  statDiv: { width: 1, alignSelf: "stretch", minHeight: 28 },
   mapPlaceholder: { margin: 16, borderRadius: 20, padding: 28, alignItems: "center", gap: 8 },
   mapPlaceholderText: { fontSize: 14, fontWeight: "600" as const, textAlign: "center" },
   mapPlaceholderSub: { fontSize: 12, textAlign: "center", lineHeight: 18 },

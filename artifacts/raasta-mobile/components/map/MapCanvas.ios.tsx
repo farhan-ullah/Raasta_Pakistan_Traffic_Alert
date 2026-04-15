@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
 import type { RoutePlanResponse } from "@/api/routePlan";
 import { useColors } from "@/hooks/useColors";
@@ -11,7 +13,13 @@ import { MapScreenHeader, MAP_HEADER_OFFSET_BELOW_SAFE } from "./MapScreenHeader
 import { FeaturedOffersStrip } from "@/components/FeaturedOffersStrip";
 import { RoutePlannerCard } from "./RoutePlannerCard";
 import { lineStringToIosLatLng } from "./routeMapUtils";
-import { useNavigationSession, type NavDestination } from "@/hooks/useNavigationSession";
+import {
+  useNavigationSession,
+  type NavDestination,
+  type NavUserSample,
+} from "@/hooks/useNavigationSession";
+import { useSmoothedNavPose } from "@/hooks/useSmoothedNavPose";
+import { NavigationVehiclePuck } from "./NavigationVehiclePuck";
 
 function hasGoogleMapsNativeKey(): boolean {
   return Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY?.trim());
@@ -47,7 +55,26 @@ function IosGoogleMapScreen() {
   const [_selected, setSelected] = useState<string | null>(null);
   const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
   const [navDestination, setNavDestination] = useState<NavDestination | null>(null);
+  const [navSample, setNavSample] = useState<NavUserSample | null>(null);
   const navigationActive = navDestination !== null;
+
+  const onUserNavigationSample = useCallback((s: NavUserSample) => {
+    setNavSample(s);
+  }, []);
+
+  useEffect(() => {
+    if (!navigationActive) setNavSample(null);
+  }, [navigationActive]);
+
+  const smoothNavTarget =
+    navigationActive && navSample
+      ? {
+          latitude: navSample.latitude,
+          longitude: navSample.longitude,
+          headingDeg: navSample.headingDeg,
+        }
+      : null;
+  const smoothedNavPose = useSmoothedNavPose(navigationActive, smoothNavTarget);
 
   const onFollowRegion = useCallback((lat: number, lng: number) => {
     mapRef.current?.animateToRegion(
@@ -66,7 +93,30 @@ function IosGoogleMapScreen() {
     destination: navDestination,
     onReplanned: setRoutePlan,
     onFollowRegion,
+    onUserNavigationSample: onUserNavigationSample,
   });
+
+  const recenterOnUserOrCity = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      mapRef.current?.animateToRegion(ISLAMABAD, 800);
+      return;
+    }
+    try {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      mapRef.current?.animateToRegion(
+        {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          latitudeDelta: 0.06,
+          longitudeDelta: 0.06,
+        },
+        900,
+      );
+    } catch {
+      mapRef.current?.animateToRegion(ISLAMABAD, 800);
+    }
+  }, []);
 
   const { data: incidents = [], isLoading, refetch } = useGetActiveMapIncidents({
     query: { refetchInterval: 15_000 } as any,
@@ -101,19 +151,72 @@ function IosGoogleMapScreen() {
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         initialRegion={ISLAMABAD}
-        showsUserLocation
+        showsUserLocation={!navigationActive}
         showsMyLocationButton={false}
       >
         {routePlan?.recommendedIsAlternative && primaryIos.length > 1 ? (
-          <Polyline
-            coordinates={primaryIos}
-            strokeColor="rgba(148, 163, 184, 0.85)"
-            strokeWidth={4}
-            lineDashPattern={[4, 6]}
-          />
+          <>
+            <Polyline
+              coordinates={primaryIos}
+              strokeColor="rgba(148, 163, 184, 0.4)"
+              strokeWidth={12}
+              lineCap="round"
+              lineJoin="round"
+            />
+            <Polyline
+              coordinates={primaryIos}
+              strokeColor="rgba(148, 163, 184, 0.9)"
+              strokeWidth={4}
+              lineDashPattern={[5, 7]}
+              lineCap="round"
+              lineJoin="round"
+            />
+          </>
         ) : null}
         {recIos.length > 1 ? (
-          <Polyline coordinates={recIos} strokeColor="#15803d" strokeWidth={5} lineCap="round" lineJoin="round" />
+          <>
+            <Polyline
+              coordinates={recIos}
+              strokeColor="rgba(5, 46, 22, 0.45)"
+              strokeWidth={18}
+              lineCap="round"
+              lineJoin="round"
+            />
+            <Polyline
+              coordinates={recIos}
+              strokeColor="rgba(190, 242, 190, 0.98)"
+              strokeWidth={10}
+              lineCap="round"
+              lineJoin="round"
+            />
+            <Polyline
+              coordinates={recIos}
+              strokeColor="#15803d"
+              strokeWidth={5}
+              lineCap="round"
+              lineJoin="round"
+            />
+            <Polyline
+              coordinates={recIos}
+              strokeColor="rgba(74, 222, 128, 0.95)"
+              strokeWidth={2}
+              lineCap="round"
+              lineJoin="round"
+            />
+          </>
+        ) : null}
+        {navigationActive && smoothedNavPose ? (
+          <Marker
+            coordinate={{ latitude: smoothedNavPose.latitude, longitude: smoothedNavPose.longitude }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            centerOffset={{ x: 0, y: 0 }}
+            flat
+            tracksViewChanges={navigationActive}
+          >
+            <View style={{ width: 52, height: 52, alignItems: "center", justifyContent: "center" }} collapsable={false}>
+              <NavigationVehiclePuck headingDeg={smoothedNavPose.headingDeg} />
+            </View>
+          </Marker>
         ) : null}
         {abCoords ? (
           <>
@@ -176,28 +279,55 @@ function IosGoogleMapScreen() {
           <ActivityIndicator color="#25a244" size="small" />
         ) : (
           <View style={styles.summaryInner}>
-            <View style={styles.statBlock}>
-              <Text style={[styles.statNum2, { color: "#ef4444" }]}>{criticalCount}</Text>
-              <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Critical</Text>
+            <View style={styles.summaryCell}>
+              <View style={styles.statBlock}>
+                <Text style={[styles.statNum2, { color: "#ef4444" }]}>{criticalCount}</Text>
+                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Critical</Text>
+              </View>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.statBlock}>
-              <Text style={[styles.statNum2, { color: "#25a244" }]}>{activeCount}</Text>
-              <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Active</Text>
+            <View style={styles.summaryCell}>
+              <View style={styles.statBlock}>
+                <Text style={[styles.statNum2, { color: "#25a244" }]}>{activeCount}</Text>
+                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Active</Text>
+              </View>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn}>
-              <Feather name="refresh-cw" size={16} color="#25a244" />
-            </TouchableOpacity>
+            <View style={styles.summaryCell}>
+              <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn} accessibilityRole="button" accessibilityLabel="Refresh incidents">
+                <Feather name="refresh-cw" size={14} color="#15803d" />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
 
       <TouchableOpacity
-        style={[styles.myLocBtn, { bottom: insets.bottom + 165, backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() => mapRef.current?.animateToRegion(ISLAMABAD, 800)}
+        style={[styles.myLocBtn, { bottom: insets.bottom + 156 }]}
+        onPress={() => void recenterOnUserOrCity()}
+        activeOpacity={0.9}
+        accessibilityLabel="Center map on your location"
       >
-        <Feather name="navigation" size={18} color="#25a244" />
+        <LinearGradient
+          colors={["#ecfccb", "#d9f99d", "#bbf7d0"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={["#4ade80", "#16a34a", "#14532d"]}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 2,
+            borderColor: "rgba(255,255,255,0.9)",
+          }}
+        >
+          <Feather name="crosshair" size={17} color="#fff" />
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
