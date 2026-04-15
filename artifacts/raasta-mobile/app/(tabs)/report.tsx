@@ -21,6 +21,8 @@ import type { GeocodePlace } from "@workspace/api-client-react";
 
 import { getApiOrigin } from "@/constants/apiOrigin";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
+import { ScreenHero } from "@/components/ui/ScreenHero";
+import { floatShadow } from "@/components/ui/screenTokens";
 
 const BASE = getApiOrigin();
 
@@ -121,16 +123,16 @@ export default function ReportScreen() {
   if (submitted) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-        <View style={styles.successWrap}>
+        <View style={[styles.successCard, { backgroundColor: colors.card, borderColor: colors.border }, floatShadow]}>
           <View style={[styles.successIcon, { backgroundColor: colors.primary }]}>
             <Feather name="check" size={40} color="#fff" />
           </View>
-          <Text style={[styles.successTitle, { color: colors.text }]}>Report Submitted!</Text>
+          <Text style={[styles.successTitle, { color: colors.text }]}>Report submitted</Text>
           <Text style={[styles.successDesc, { color: colors.subtext }]}>
             Your incident is now live on the map. Police will verify and update your report shortly.
           </Text>
           <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.primary }]} onPress={reset}>
-            <Text style={styles.submitBtnText}>Report Another</Text>
+            <Text style={styles.submitBtnText}>Report another</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -139,17 +141,18 @@ export default function ReportScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 8, backgroundColor: colors.primary }]}>
-        <Text style={styles.headerTitle}>Report Incident</Text>
-        <Text style={styles.headerSub}>Help your community — reports go live instantly</Text>
-      </View>
+      {Platform.OS === "web" ? <View style={{ height: topPad }} /> : null}
+      <ScreenHero
+        eyebrow="Community"
+        title="Report incident"
+        subtitle="Help others — verified reports appear on the map"
+      />
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-        {/* Type */}
         <Text style={[styles.sectionLabel, { color: colors.text }]}>What happened?</Text>
-        <View style={styles.typeGrid}>
+        <View style={[styles.typePanel, { backgroundColor: colors.card, borderColor: colors.border }, floatShadow]}>
+          <View style={styles.typeGrid}>
           {TYPES.map((t) => (
             <TouchableOpacity
               key={t.value}
@@ -166,6 +169,7 @@ export default function ReportScreen() {
               <Text style={[styles.typeLabel, { color: type === t.value ? "#fff" : colors.text }]}>{t.label}</Text>
             </TouchableOpacity>
           ))}
+          </View>
         </View>
 
         {/* Photos */}
@@ -271,11 +275,9 @@ export default function ReportScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 16 },
-  headerTitle: { fontSize: 20, fontWeight: "900" as const, color: "#fff" },
-  headerSub: { fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 2 },
-  sectionLabel: { fontSize: 14, fontWeight: "700" as const, marginBottom: 10, marginTop: 4 },
-  typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
+  sectionLabel: { fontSize: 15, fontWeight: "800" as const, marginBottom: 10, marginTop: 8 },
+  typePanel: { borderRadius: 18, borderWidth: 1, padding: 12, marginBottom: 20 },
+  typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   typeCard: {
     flexBasis: "46%",
     flexGrow: 1,
@@ -297,6 +299,7 @@ const styles = StyleSheet.create({
   submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16, marginTop: 8 },
   submitBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" as const },
   successWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
+  successCard: { maxWidth: 400, width: "100%", marginHorizontal: 20, borderRadius: 22, borderWidth: 1, padding: 28, alignItems: "center", gap: 14 },
   successIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
   successTitle: { fontSize: 24, fontWeight: "800" as const },
   successDesc: { fontSize: 15, textAlign: "center", lineHeight: 22 },

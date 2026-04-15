@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Platform,
 } from "react-native";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
+import { MapScreenHeader } from "./MapScreenHeader";
+import { floatShadow } from "@/components/ui/screenTokens";
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: "#dc2626",
@@ -32,7 +35,6 @@ export default function WebMapFallback({
   mapsHint?: string;
 }) {
   const colors = useColors();
-  const topPad = 67;
 
   const { data: incidents = [], isLoading, refetch } = useGetActiveMapIncidents({
     query: { refetchInterval: 15_000 } as any,
@@ -43,20 +45,10 @@ export default function WebMapFallback({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerTitle}>Raasta</Text>
-            <Text style={styles.headerSub}>Islamabad Live Traffic</Text>
-          </View>
-          <View style={styles.liveTag}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        </View>
-      </View>
+      {Platform.OS === "web" ? <View style={{ height: 56 }} /> : null}
+      <MapScreenHeader subtitle="Islamabad live traffic · list view" />
 
-      <View style={[styles.statsBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <View style={[styles.statsBar, { backgroundColor: colors.card, borderColor: colors.border }, floatShadow]}>
         <View style={styles.statItem}>
           <Text style={[styles.statNum, { color: "#ef4444" }]}>{criticalCount}</Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Critical</Text>
@@ -89,14 +81,17 @@ export default function WebMapFallback({
         )}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 120 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 120 }}>
         {isLoading ? (
           <ActivityIndicator color="#25a244" style={{ marginTop: 20 }} />
         ) : incidents.map((incident) => {
           const color = SEVERITY_COLOR[incident.severity ?? "medium"] ?? "#f59e0b";
           const icon = (TYPE_ICONS[incident.type ?? "blockage"] ?? "alert-triangle") as any;
           return (
-            <View key={incident.id} style={[styles.incidentRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View
+              key={incident.id}
+              style={[styles.incidentRow, floatShadow, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
               <View style={[styles.incidentIcon, { backgroundColor: color + "22" }]}>
                 <Feather name={icon} size={16} color={color} />
               </View>
@@ -117,35 +112,28 @@ export default function WebMapFallback({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: "#01411Cee",
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: -6,
+    borderRadius: 18,
+    borderWidth: 1,
   },
-  headerContent: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: 22, fontWeight: "900" as const, color: "#fff", letterSpacing: -0.5 },
-  headerSub: { fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 1 },
-  liveTag: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#ef444488", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#fff" },
-  liveText: { color: "#fff", fontSize: 11, fontWeight: "800" as const },
-  statsBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 14, borderBottomWidth: 1 },
   statItem: { alignItems: "center", gap: 3 },
   statNum: { fontSize: 22, fontWeight: "800" as const },
-  statLabel: { fontSize: 10, fontWeight: "600" as const },
+  statLabel: { fontSize: 10, fontWeight: "700" as const },
   statDiv: { width: 1, height: 36 },
-  mapPlaceholder: { margin: 16, borderRadius: 16, padding: 32, alignItems: "center", gap: 8 },
+  mapPlaceholder: { margin: 16, borderRadius: 20, padding: 28, alignItems: "center", gap: 8 },
   mapPlaceholderText: { fontSize: 14, fontWeight: "600" as const, textAlign: "center" },
-  mapPlaceholderSub: { fontSize: 12, textAlign: "center" },
-  incidentRow: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 8 },
-  incidentIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  mapPlaceholderSub: { fontSize: 12, textAlign: "center", lineHeight: 18 },
+  incidentRow: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 16, borderWidth: 1, padding: 12, marginBottom: 10 },
+  incidentIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   incidentContent: { flex: 1 },
-  incidentTitle: { fontSize: 13, fontWeight: "600" as const },
+  incidentTitle: { fontSize: 14, fontWeight: "600" as const },
   incidentLoc: { fontSize: 11, marginTop: 2 },
-  incidentBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  incidentBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   incidentBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" as const },
 });

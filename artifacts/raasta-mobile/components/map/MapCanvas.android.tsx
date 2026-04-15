@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Pressable } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import {
   MapView,
   Camera,
@@ -7,8 +7,10 @@ import {
   MarkerView,
   ShapeSource,
   LineLayer,
+  CircleLayer,
   requestAndroidLocationPermissions,
   type CameraRef,
+  type OnPressEvent,
 } from "@maplibre/maplibre-react-native";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
 import type { RoutePlanResponse } from "@/api/routePlan";
@@ -17,8 +19,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import { nativeMapChromeStyles as styles } from "./nativeMapChromeStyles";
+import { MapScreenHeader, MAP_HEADER_OFFSET_BELOW_SAFE } from "./MapScreenHeader";
+import { FeaturedOffersStrip } from "@/components/FeaturedOffersStrip";
 import { RoutePlannerCard } from "./RoutePlannerCard";
 import { boundsCenterZoom, lineStringFeature } from "./routeMapUtils";
+import { FOLLOW_ZOOM, useNavigationSession, type NavDestination } from "@/hooks/useNavigationSession";
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: "#dc2626",
@@ -77,6 +82,25 @@ export default function MapCanvas() {
   /** OS runtime permission — manifest alone is not enough on Android 6+. */
   const [locationGranted, setLocationGranted] = useState(false);
   const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
+  const [navDestination, setNavDestination] = useState<NavDestination | null>(null);
+
+  const navigationActive = navDestination !== null;
+
+  const onFollowCoordinate = useCallback((coord: [number, number]) => {
+    cameraRef.current?.setCamera({
+      centerCoordinate: coord,
+      zoomLevel: FOLLOW_ZOOM,
+      animationDuration: 550,
+      animationMode: "easeTo",
+    });
+  }, []);
+
+  useNavigationSession({
+    active: navigationActive,
+    destination: navDestination,
+    onReplanned: setRoutePlan,
+    onFollowCoordinate,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +125,7 @@ export default function MapCanvas() {
   const mapStyle = useMemo(() => OSM_MAP_STYLE, []);
 
   useEffect(() => {
-    if (!routePlan) return;
+    if (!routePlan || navigationActive) return;
     const coords = routePlan.recommended.geometry.coordinates as [number, number][];
     if (coords.length < 2) return;
     const { center, zoomLevel } = boundsCenterZoom(coords);
@@ -111,11 +135,54 @@ export default function MapCanvas() {
       animationDuration: 900,
       animationMode: "easeTo",
     });
-  }, [routePlan]);
+  }, [routePlan, navigationActive]);
 
   const routeCoords = routePlan?.recommended.geometry.coordinates as [number, number][] | undefined;
   const routeStart = routeCoords?.[0];
   const routeEnd = routeCoords && routeCoords.length > 1 ? routeCoords[routeCoords.length - 1] : undefined;
+
+  /** Geo-anchored circles (not MarkerView) so pins stay fixed when zooming, like UserLocation. */
+  const incidentsGeoJson = useMemo((): GeoJSON.FeatureCollection => {
+    return {
+      type: "FeatureCollection",
+      features: incidents.map(incident => {
+        const color = SEVERITY_COLOR[incident.severity ?? "medium"] ?? "#f59e0b";
+        const id = String(incident.id ?? `${incident.lat}_${incident.lng}`);
+        return {
+          type: "Feature",
+          id,
+          geometry: {
+            type: "Point",
+            coordinates: [incident.lng, incident.lat],
+          },
+          properties: {
+            id,
+            title: incident.title ?? "",
+            location: incident.location ?? "",
+            severity: incident.severity ?? "",
+            createdAt: incident.createdAt ?? new Date().toISOString(),
+            color,
+          },
+        };
+      }),
+    };
+  }, [incidents]);
+
+  const onIncidentShapePress = (e: OnPressEvent) => {
+    const f = e.features[0];
+    const p = f?.properties as Record<string, string | number | undefined> | undefined;
+    if (!p) return;
+    const id = String(p.id ?? "");
+    const color = String(p.color ?? "#f59e0b");
+    setSelected({
+      id,
+      title: String(p.title ?? ""),
+      location: String(p.location ?? ""),
+      severity: String(p.severity ?? ""),
+      createdAt: String(p.createdAt ?? new Date().toISOString()),
+      color,
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -196,46 +263,38 @@ export default function MapCanvas() {
           </>
         ) : null}
 
-        {incidents.map((incident: (typeof incidents)[0]) => {
-          const color = SEVERITY_COLOR[incident.severity ?? "medium"] ?? "#f59e0b";
-          const key = String(incident.id ?? `${incident.lat}_${incident.lng}`);
-          return (
-            <MarkerView key={key} coordinate={[incident.lng, incident.lat]} allowOverlap>
-              <Pressable
-                onPress={() =>
-                  setSelected({
-                    id: key,
-                    title: incident.title ?? "",
-                    location: incident.location ?? "",
-                    severity: incident.severity ?? "",
-                    createdAt: incident.createdAt ?? new Date().toISOString(),
-                    color,
-                  })
-                }
-              >
-                <View style={[styles.markerOuter, { borderColor: color }]}>
-                  <View style={[styles.markerInner, { backgroundColor: color }]} />
-                </View>
-              </Pressable>
-            </MarkerView>
-          );
-        })}
+        {incidentsGeoJson.features.length > 0 ? (
+          <ShapeSource id="raasta_incidents" shape={incidentsGeoJson} onPress={onIncidentShapePress}>
+            <CircleLayer
+              id="raasta_incidents_circles"
+              style={{
+                circleRadius: 5,
+                circleColor: ["get", "color"],
+                circleStrokeWidth: 2.5,
+                circleStrokeColor: "rgba(255,255,255,0.95)",
+                circlePitchAlignment: "map",
+              }}
+            />
+          </ShapeSource>
+        ) : null}
       </MapView>
 
-      <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerTitle}>Raasta by Averox</Text>
-            <Text style={styles.headerSub}>Islamabad Live Traffic · OSM</Text>
-          </View>
-          <View style={styles.liveTag}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        </View>
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30 }} pointerEvents="box-none">
+        <MapScreenHeader subtitle="Islamabad live traffic · OpenStreetMap" />
       </View>
 
-      <RoutePlannerCard topOffset={topPad + 58} onRoutePlanned={setRoutePlan} />
+      <RoutePlannerCard
+        topOffset={topPad + MAP_HEADER_OFFSET_BELOW_SAFE}
+        onRoutePlanned={plan => {
+          setRoutePlan(plan);
+          if (!plan) setNavDestination(null);
+        }}
+        navigationActive={navigationActive}
+        onStartNavigation={dest => setNavDestination(dest)}
+        onStopNavigation={() => setNavDestination(null)}
+      />
+
+      <FeaturedOffersStrip bottom={insets.bottom + 152} />
 
       {selected ? (
         <View

@@ -25,6 +25,9 @@ import type { GeocodePlace } from "@workspace/api-client-react";
 
 import { getApiOrigin } from "@/constants/apiOrigin";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
+import { LinearGradient } from "expo-linear-gradient";
+import { ScreenHero, LivePillSm } from "@/components/ui/ScreenHero";
+import { brandGradientColors, floatShadow } from "@/components/ui/screenTokens";
 
 const BASE = getApiOrigin();
 
@@ -72,20 +75,20 @@ function LoginScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
+    <LinearGradient colors={[...brandGradientColors]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, paddingTop: topPad }}>
       <View style={styles.loginWrap}>
-       
+        <View style={styles.loginBrand}>
           <Image
             source={require("@/assets/images/police_icon.png")}
-            style={{ width: 40, height: 40 }}
+            style={{ width: 48, height: 48 }}
             resizeMode="contain"
             accessibilityLabel="Police"
           />
-       
-        <Text style={[styles.loginTitle, { color: colors.text }]}>Police Command</Text>
-        <Text style={[styles.loginSub, { color: colors.subtext }]}>Raasta — Islamabad Traffic Control</Text>
+          <Text style={styles.loginHeroTitle}>Police Command</Text>
+          <Text style={styles.loginHeroSub}>Raasta · Islamabad Traffic Control</Text>
+        </View>
 
-        <View style={[styles.loginCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.loginCard, { backgroundColor: colors.card, borderColor: colors.border }, floatShadow]}>
           <View style={styles.loginCardHeader}>
             <Feather name="lock" size={14} color={colors.primaryLight} />
             <Text style={[styles.loginCardTitle, { color: colors.text }]}>Officer Access Code Required</Text>
@@ -136,7 +139,7 @@ function LoginScreen() {
           </Text>
         </View>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -246,47 +249,42 @@ export default function PoliceScreen() {
     }
   };
 
+  const policeHeaderRight = (
+    <View style={styles.headerRight}>
+      <LivePillSm />
+      <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+        <Feather name="log-out" size={18} color="rgba(255,255,255,0.9)" />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const statsStrip = (
+    <View style={styles.statsRow}>
+      {[
+        { label: "Active", value: active.length, color: "#ef4444" },
+        { label: "Unverified", value: unverified.length, color: "#f59e0b" },
+        { label: "Citizens", value: citizen.length, color: "#60a5fa" },
+        { label: "Resolved", value: resolved.length, color: "#4ade80" },
+      ].map((s) => (
+        <View key={s.label} style={styles.statCard}>
+          <Text style={[styles.statNum, { color: s.color }]}>{s.value}</Text>
+          <Text style={styles.statLabel}>{s.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 8, backgroundColor: colors.primary }]}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Image
-              source={require("@/assets/images/police_icon.png")}
-              style={{ width: 22, height: 22 }}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={styles.headerTitle}>Police Command</Text>
-              <Text style={styles.headerSub}>Islamabad Traffic Control</Text>
-            </View>
-          </View>
-          <View style={styles.headerRight}>
-            <View style={styles.livePill}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
-            </View>
-            <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-              <Feather name="log-out" size={18} color="rgba(255,255,255,0.8)" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.statsRow}>
-          {[
-            { label: "Active", value: active.length, color: "#ef4444" },
-            { label: "Unverified", value: unverified.length, color: "#f59e0b" },
-            { label: "Citizens", value: citizen.length, color: "#60a5fa" },
-            { label: "Resolved", value: resolved.length, color: "#4ade80" },
-          ].map((s) => (
-            <View key={s.label} style={styles.statCard}>
-              <Text style={[styles.statNum, { color: s.color }]}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
+      {Platform.OS === "web" ? <View style={{ height: topPad }} /> : null}
+      <ScreenHero
+        eyebrow="Operations"
+        title="Police command"
+        subtitle="Islamabad traffic control"
+        right={policeHeaderRight}
+      >
+        {statsStrip}
+      </ScreenHero>
 
       {/* Tabs */}
       <View style={[styles.tabs, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
@@ -465,6 +463,9 @@ export default function PoliceScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loginBrand: { alignItems: "center", gap: 6, marginBottom: 8 },
+  loginHeroTitle: { fontSize: 28, fontWeight: "900" as const, color: "#fff", letterSpacing: -0.5 },
+  loginHeroSub: { fontSize: 14, color: "rgba(255,255,255,0.88)", fontWeight: "600" as const },
   loginWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
   loginIconBox: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   loginTitle: { fontSize: 26, fontWeight: "900" as const },

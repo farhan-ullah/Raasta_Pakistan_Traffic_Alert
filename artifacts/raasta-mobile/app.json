@@ -18,8 +18,7 @@
       "bundleIdentifier": "com.raasta.pakistan",
       "infoPlist": {
         "NSCameraUsageDescription": "Raasta needs camera access to let you photograph incidents for reporting.",
-        "NSPhotoLibraryUsageDescription": "Raasta needs photo library access to attach images to incident reports.",
-        "NSLocationWhenInUseUsageDescription": "Raasta uses your location to show your position on the traffic map."
+        "NSPhotoLibraryUsageDescription": "Raasta needs photo library access to attach images to incident reports."
       }
     },
     "android": {
@@ -32,8 +31,6 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.POST_NOTIFICATIONS"
@@ -61,7 +58,12 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Raasta uses your location to show your position on the traffic map."
+          "locationWhenInUsePermission": "Raasta uses your location to show your position on the traffic map.",
+          "locationAlwaysAndWhenInUsePermission": "Raasta uses your location in the background while turn-by-turn navigation is active (for example after a phone call), so your route stays aligned to the road.",
+          "locationAlwaysPermission": "Raasta may use your location in the background while navigation is turned on, to refresh your route to the destination.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

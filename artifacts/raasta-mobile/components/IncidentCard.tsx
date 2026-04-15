@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { cardShadow } from "@/components/ui/screenTokens";
 
 interface Incident {
   id: string;
@@ -75,7 +76,7 @@ export function IncidentCard({ incident, onVerify, onResolve, showActions }: Inc
   );
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[styles.card, cardShadow, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {photos.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
           {photos.slice(0, 3).map((uri: string, i: number) => (
@@ -171,7 +172,7 @@ export function IncidentCard({ incident, onVerify, onResolve, showActions }: Inc
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     marginBottom: 12,
     overflow: "hidden",

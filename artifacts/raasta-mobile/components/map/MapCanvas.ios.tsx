@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
 import type { RoutePlanResponse } from "@/api/routePlan";
@@ -7,8 +7,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import WebMapFallback from "./WebMapFallback";
 import { nativeMapChromeStyles as styles } from "./nativeMapChromeStyles";
+import { MapScreenHeader, MAP_HEADER_OFFSET_BELOW_SAFE } from "./MapScreenHeader";
+import { FeaturedOffersStrip } from "@/components/FeaturedOffersStrip";
 import { RoutePlannerCard } from "./RoutePlannerCard";
 import { lineStringToIosLatLng } from "./routeMapUtils";
+import { useNavigationSession, type NavDestination } from "@/hooks/useNavigationSession";
 
 function hasGoogleMapsNativeKey(): boolean {
   return Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY?.trim());
@@ -43,6 +46,27 @@ function IosGoogleMapScreen() {
   const mapRef = useRef<any>(null);
   const [_selected, setSelected] = useState<string | null>(null);
   const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
+  const [navDestination, setNavDestination] = useState<NavDestination | null>(null);
+  const navigationActive = navDestination !== null;
+
+  const onFollowRegion = useCallback((lat: number, lng: number) => {
+    mapRef.current?.animateToRegion(
+      {
+        latitude: lat,
+        longitude: lng,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      },
+      500,
+    );
+  }, []);
+
+  useNavigationSession({
+    active: navigationActive,
+    destination: navDestination,
+    onReplanned: setRoutePlan,
+    onFollowRegion,
+  });
 
   const { data: incidents = [], isLoading, refetch } = useGetActiveMapIncidents({
     query: { refetchInterval: 15_000 } as any,
@@ -53,14 +77,14 @@ function IosGoogleMapScreen() {
   const criticalCount = incidents.filter((i) => i.severity === "critical").length;
 
   useEffect(() => {
-    if (!routePlan) return;
+    if (!routePlan || navigationActive) return;
     const coords = lineStringToIosLatLng(routePlan.recommended.geometry.coordinates as [number, number][]);
     if (coords.length < 2) return;
     mapRef.current?.fitToCoordinates(coords, {
       edgePadding: { top: 140, right: 36, bottom: 200, left: 36 },
       animated: true,
     });
-  }, [routePlan]);
+  }, [routePlan, navigationActive]);
 
   const primaryIos = routePlan?.recommendedIsAlternative
     ? lineStringToIosLatLng(routePlan.primary.geometry.coordinates as [number, number][])
@@ -130,20 +154,22 @@ function IosGoogleMapScreen() {
         })}
       </MapView>
 
-      <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerTitle}>Raasta by Averox</Text>
-            <Text style={styles.headerSub}>Islamabad Live Traffic</Text>
-          </View>
-          <View style={styles.liveTag}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        </View>
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30 }} pointerEvents="box-none">
+        <MapScreenHeader subtitle="Islamabad live traffic overview" />
       </View>
 
-      <RoutePlannerCard topOffset={topPad + 58} onRoutePlanned={setRoutePlan} />
+      <RoutePlannerCard
+        topOffset={topPad + MAP_HEADER_OFFSET_BELOW_SAFE}
+        onRoutePlanned={plan => {
+          setRoutePlan(plan);
+          if (!plan) setNavDestination(null);
+        }}
+        navigationActive={navigationActive}
+        onStartNavigation={dest => setNavDestination(dest)}
+        onStopNavigation={() => setNavDestination(null)}
+      />
+
+      <FeaturedOffersStrip bottom={insets.bottom + 152} />
 
       <View style={[styles.summary, { bottom: insets.bottom + 90, backgroundColor: colors.card, borderColor: colors.border }]}>
         {isLoading ? (

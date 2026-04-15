@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PoliceAuthProvider } from "@/context/PoliceAuthContext";
 import { AlertProvider } from "@/context/AlertContext";
 import { getApiOrigin } from "@/constants/apiOrigin";
+import "@/lib/navigationLocationTask";
 
 setBaseUrl(getApiOrigin());
 
@@ -29,6 +30,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="offers" options={{ headerShown: false }} />
     </Stack>
   );
 }

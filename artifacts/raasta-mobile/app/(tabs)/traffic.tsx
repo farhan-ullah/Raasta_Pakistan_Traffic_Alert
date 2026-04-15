@@ -14,6 +14,7 @@ import { useColors } from "@/hooks/useColors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { IncidentCard } from "@/components/IncidentCard";
 import { Feather } from "@expo/vector-icons";
+import { ScreenHero, LivePillSm } from "@/components/ui/ScreenHero";
 
 type FilterType = "all" | "blockage" | "construction" | "vip_movement" | "accident" | "congestion";
 
@@ -41,47 +42,33 @@ export default function TrafficScreen() {
     ? allIncidents
     : allIncidents.filter((i: IncidentItem) => i.type === filter);
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 84 : insets.bottom + 60;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 8, backgroundColor: colors.primary }]}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerTitle}>Live Traffic</Text>
-            <Text style={styles.headerSub}>{allIncidents.length} active incidents · Islamabad</Text>
-          </View>
-          <View style={styles.livePill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        </View>
-
-        {/* Filter chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+      <ScreenHero
+        eyebrow="Road watch"
+        title="Live traffic"
+        subtitle={`${allIncidents.length} active in Islamabad`}
+        right={<LivePillSm />}
+      >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={styles.chipsInner}>
           {FILTERS.map((f) => (
             <TouchableOpacity
               key={f.key}
               onPress={() => setFilter(f.key)}
               style={[
                 styles.filterChip,
-                filter === f.key
-                  ? { backgroundColor: "#fff" }
-                  : { backgroundColor: "rgba(255,255,255,0.15)" },
+                filter === f.key ? styles.chipOn : styles.chipOff,
               ]}
             >
-              <Text style={[
-                styles.filterText,
-                { color: filter === f.key ? colors.primary : "#fff" },
-              ]}>
+              <Text style={[styles.filterText, filter === f.key ? styles.chipTxtOn : styles.chipTxtOff]}>
                 {f.label}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </View>
+      </ScreenHero>
 
       <FlatList
         data={incidents}
@@ -95,8 +82,10 @@ export default function TrafficScreen() {
         ListEmptyComponent={
           !isLoading ? (
             <View style={styles.empty}>
-              <Feather name="check-circle" size={48} color={colors.mutedForeground} />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>All Clear</Text>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
+                <Feather name="check-circle" size={40} color={colors.primaryLight} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>All clear</Text>
               <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
                 No active incidents in {filter === "all" ? "Islamabad" : FILTERS.find((f) => f.key === filter)?.label ?? filter}
               </Text>
@@ -111,17 +100,16 @@ export default function TrafficScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingBottom: 0 },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12 },
-  headerTitle: { fontSize: 20, fontWeight: "900" as const, color: "#fff" },
-  headerSub: { fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 2 },
-  livePill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#ef444488", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
-  liveText: { color: "#fff", fontSize: 10, fontWeight: "800" as const },
-  filters: { marginBottom: 12 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  filterText: { fontSize: 13, fontWeight: "600" as const },
-  empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: "700" as const },
-  emptyDesc: { fontSize: 14, textAlign: "center" },
+  filters: { marginTop: 4 },
+  chipsInner: { gap: 8, paddingBottom: 2 },
+  filterChip: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 999 },
+  chipOn: { backgroundColor: "#fff" },
+  chipOff: { backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)" },
+  filterText: { fontSize: 13, fontWeight: "700" },
+  chipTxtOn: { color: "#01411C" },
+  chipTxtOff: { color: "#fff" },
+  empty: { alignItems: "center", justifyContent: "center", paddingTop: 56, gap: 10, paddingHorizontal: 24 },
+  emptyIcon: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontSize: 20, fontWeight: "800" },
+  emptyDesc: { fontSize: 15, textAlign: "center", lineHeight: 22 },
 });

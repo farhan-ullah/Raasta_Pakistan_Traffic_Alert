@@ -41,9 +41,19 @@ export type RoutePlannerCardProps = {
   /** Distance from top of screen (e.g. below header). */
   topOffset: number;
   onRoutePlanned: (plan: RoutePlanResponse | null) => void;
+  /** Turn-by-turn style session (current GPS → B); not persisted. */
+  navigationActive?: boolean;
+  onStartNavigation?: (destination: { lat: number; lng: number }) => void;
+  onStopNavigation?: () => void;
 };
 
-export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCardProps) {
+export function RoutePlannerCard({
+  topOffset,
+  onRoutePlanned,
+  navigationActive = false,
+  onStartNavigation,
+  onStopNavigation,
+}: RoutePlannerCardProps) {
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
   const [fromText, setFromText] = useState("");
@@ -98,6 +108,7 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
   };
 
   const clearRoute = () => {
+    onStopNavigation?.();
     setSummary(null);
     setError(null);
     onRoutePlanned(null);
@@ -166,9 +177,16 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
   return (
     <View style={[styles.routePlannerWrap, { top: topOffset, backgroundColor: colors.card, borderColor: colors.border }]}>
       <TouchableOpacity style={styles.routePlannerHeader} onPress={toggle} activeOpacity={0.85}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Feather name="navigation-2" size={18} color="#15803d" />
-          <Text style={[styles.routePlannerTitle, { color: colors.text }]}>Route (you → B)</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ backgroundColor: colors.accent, borderRadius: 12, padding: 8 }}>
+            <Feather name="navigation-2" size={18} color="#15803d" />
+          </View>
+          <View>
+            <Text style={[styles.routePlannerTitle, { color: colors.text }]}>Route planner</Text>
+            <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 1, fontWeight: "600" }}>
+              You → destination
+            </Text>
+          </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           {summary ? (
@@ -239,6 +257,43 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
             )}
           </TouchableOpacity>
 
+          {rec && summary && toPlace ? (
+            <>
+              {navigationActive ? (
+                <TouchableOpacity
+                  style={[
+                    styles.routePlannerGo,
+                    { backgroundColor: "#b91c1c", marginTop: 8 },
+                  ]}
+                  onPress={onStopNavigation}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.routePlannerGoText}>Stop navigation</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.routePlannerGo, { marginTop: 8 }]}
+                  onPress={() => {
+                    if (!toPlace) return;
+                    onStartNavigation?.({ lat: toPlace.lat, lng: toPlace.lng });
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.routePlannerGoText}>Start navigation</Text>
+                </TouchableOpacity>
+              )}
+              <Text
+                style={[
+                  styles.routePlannerHint,
+                  { color: colors.subtext, marginTop: 6, fontSize: 10, lineHeight: 14 },
+                ]}
+              >
+                Follows your position and refreshes the route from your current GPS to destination. Stays active in the
+                background on Android while navigating.
+              </Text>
+            </>
+          ) : null}
+
           {rec && summary ? (
             <View style={{ paddingHorizontal: 12 }}>
               <Text style={[styles.routePlannerHint, { color: colors.text }]}>
@@ -280,6 +335,7 @@ export function RoutePlannerCard({ topOffset, onRoutePlanned }: RoutePlannerCard
       ) : summary && rec ? (
         <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
           <Text style={{ fontSize: 12, color: colors.subtext }} numberOfLines={2}>
+            {navigationActive ? "Navigating · " : ""}
             {formatRouteDistance(rec.distanceMeters)} · {formatRouteDuration(rec.durationSeconds)}
             {alt ? " · safer alt" : ""}
             {" · "}

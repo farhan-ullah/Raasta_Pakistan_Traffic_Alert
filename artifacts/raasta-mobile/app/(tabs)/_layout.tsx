@@ -49,32 +49,76 @@ function ClassicTabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
+  const tabBarFloat = {
+    position: "absolute" as const,
+    left: 14,
+    right: 14,
+    bottom: Math.max(insets.bottom, 10),
+    height: isWeb ? 72 : 64,
+    paddingBottom: 0,
+    paddingTop: 6,
+    borderRadius: 26,
+    borderTopWidth: 0,
+    borderWidth: 1,
+    borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(1,65,28,0.1)",
+    backgroundColor: isIOS ? "transparent" : isDark ? "rgba(22,22,24,0.92)" : colors.card,
+    ...(isIOS
+      ? {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.18,
+          shadowRadius: 20,
+        }
+      : {}),
+    ...(!isIOS
+      ? {
+          elevation: 16,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: isWeb ? 0.1 : 0.14,
+          shadowRadius: 18,
+        }
+      : {}),
+  };
+
   return (
     <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#25a244",
+        tabBarActiveTintColor: "#15803d",
         tabBarInactiveTintColor: colors.mutedForeground,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          elevation: 0,
-          paddingBottom: insets.bottom,
-          ...(isWeb ? { height: 84 } : {}),
+        tabBarShowLabel: true,
+        tabBarHideOnKeyboard: true,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "700",
+          letterSpacing: 0.15,
+          marginTop: -2,
         },
+        tabBarItemStyle: {
+          paddingVertical: 4,
+        },
+        tabBarStyle: tabBarFloat,
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "systemChromeMaterial"}
-              style={StyleSheet.absoluteFill}
+              intensity={88}
+              tint={isDark ? "dark" : "light"}
+              style={[StyleSheet.absoluteFill, { borderRadius: 26, overflow: "hidden" }]}
             />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-          ) : null,
+          ) : (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  borderRadius: 26,
+                  overflow: "hidden",
+                  backgroundColor: isWeb ? (isDark ? "rgba(22,22,24,0.95)" : "rgba(255,255,255,0.95)") : undefined,
+                },
+              ]}
+            />
+          ),
       }}
     >
       <Tabs.Screen
