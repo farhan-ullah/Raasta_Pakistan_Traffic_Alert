@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   MapView,
@@ -24,6 +24,7 @@ import { Feather } from "@expo/vector-icons";
 import { nativeMapChromeStyles as styles } from "./nativeMapChromeStyles";
 import { MapScreenHeader, MAP_HEADER_OFFSET_BELOW_SAFE } from "./MapScreenHeader";
 import { FeaturedOffersStrip } from "@/components/FeaturedOffersStrip";
+import { MapFloatingSearchPrompt } from "./MapFloatingSearchPrompt";
 import { RoutePlannerCard } from "./RoutePlannerCard";
 import { boundsCenterZoom, lineStringFeature } from "./routeMapUtils";
 import {
@@ -92,6 +93,7 @@ export default function MapCanvas() {
   } | null>(null);
   /** OS runtime permission — manifest alone is not enough on Android 6+. */
   const [locationGranted, setLocationGranted] = useState(false);
+  const [routePlannerOpen, setRoutePlannerOpen] = useState(false);
   const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
   const [navDestination, setNavDestination] = useState<NavDestination | null>(null);
   const [navSample, setNavSample] = useState<NavUserSample | null>(null);
@@ -184,8 +186,12 @@ export default function MapCanvas() {
   });
 
   const topPad = insets.top;
-  const activeCount = incidents.filter((i) => i.status === "active").length;
-  const criticalCount = incidents.filter((i) => i.severity === "critical").length;
+  const headerEndY = topPad + MAP_HEADER_OFFSET_BELOW_SAFE;
+  const offersTop = headerEndY - 36;
+  const OFFERS_STRIP_BLOCK = 102;
+  const searchTop = offersTop + OFFERS_STRIP_BLOCK + 10;
+  const tabBarPad = Math.max(insets.bottom, 10) + 100;
+  const myLocTop = searchTop + 58;
 
   const mapStyle = useMemo(() => OSM_MAP_STYLE, []);
 
@@ -390,7 +396,7 @@ export default function MapCanvas() {
             <CircleLayer
               id="raasta_incidents_circles"
               style={{
-                circleRadius: 5,
+                circleRadius: 8,
                 circleColor: ["get", "color"],
                 circleStrokeWidth: 2.5,
                 circleStrokeColor: "rgba(255,255,255,0.95)",
@@ -402,28 +408,56 @@ export default function MapCanvas() {
       </MapView>
 
       <View style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30 }} pointerEvents="box-none">
-        <MapScreenHeader subtitle="Islamabad live traffic · OpenStreetMap" />
+        <MapScreenHeader
+          subtitle="Civic Vanguard · Islamabad live traffic"
+          onRefreshPress={() => void refetch()}
+          refreshing={isLoading}
+        />
       </View>
 
-      <RoutePlannerCard
-        topOffset={topPad + MAP_HEADER_OFFSET_BELOW_SAFE}
-        onRoutePlanned={plan => {
-          setRoutePlan(plan);
-          if (!plan) setNavDestination(null);
-        }}
-        navigationActive={navigationActive}
-        onStartNavigation={dest => setNavDestination(dest)}
-        onStopNavigation={() => setNavDestination(null)}
+      <FeaturedOffersStrip top={offersTop} />
+
+      <MapFloatingSearchPrompt
+        top={searchTop}
+        onPress={() => setRoutePlannerOpen(true)}
+        onNavPress={() => setRoutePlannerOpen(true)}
       />
 
-      <FeaturedOffersStrip bottom={insets.bottom + 152} />
+      <Modal
+        visible={routePlannerOpen}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setRoutePlannerOpen(false)}
+      >
+        <View style={androidModalStyles.overlay}>
+          <Pressable style={androidModalStyles.scrim} onPress={() => setRoutePlannerOpen(false)} accessibilityLabel="Dismiss" />
+          <View style={[androidModalStyles.sheetWrap, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+            <RoutePlannerCard
+              layout="modalSheet"
+              bottomOffset={0}
+              onClosePress={() => setRoutePlannerOpen(false)}
+              onRoutePlanned={plan => {
+                setRoutePlan(plan);
+                if (!plan) setNavDestination(null);
+              }}
+              navigationActive={navigationActive}
+              onStartNavigation={dest => {
+                setNavDestination(dest);
+                setRoutePlannerOpen(false);
+              }}
+              onStopNavigation={() => setNavDestination(null)}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {selected ? (
         <View
           style={[
             styles.summary,
             {
-              bottom: insets.bottom + 160,
+              bottom: tabBarPad + 340,
               backgroundColor: colors.card,
               borderColor: colors.border,
             },
@@ -453,36 +487,8 @@ export default function MapCanvas() {
         </View>
       ) : null}
 
-      <View style={[styles.summary, { bottom: insets.bottom + 90, backgroundColor: colors.card, borderColor: colors.border }]}>
-        {isLoading ? (
-          <ActivityIndicator color="#25a244" size="small" />
-        ) : (
-          <View style={styles.summaryInner}>
-            <View style={styles.summaryCell}>
-              <View style={styles.statBlock}>
-                <Text style={[styles.statNum2, { color: "#ef4444" }]}>{criticalCount}</Text>
-                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Critical</Text>
-              </View>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.summaryCell}>
-              <View style={styles.statBlock}>
-                <Text style={[styles.statNum2, { color: "#25a244" }]}>{activeCount}</Text>
-                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Active</Text>
-              </View>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.summaryCell}>
-              <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn} accessibilityRole="button" accessibilityLabel="Refresh incidents">
-                <Feather name="refresh-cw" size={14} color="#15803d" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-
       <TouchableOpacity
-        style={[styles.myLocBtn, { bottom: insets.bottom + 156 }]}
+        style={[styles.myLocBtn, { top: myLocTop, bottom: undefined }]}
         onPress={() => void recenterOnUserOrCity()}
         activeOpacity={0.9}
         accessibilityLabel="Center map on your location"
@@ -511,3 +517,20 @@ export default function MapCanvas() {
     </View>
   );
 }
+
+const androidModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  sheetWrap: {
+    paddingHorizontal: 16,
+    width: "100%",
+    zIndex: 2,
+    maxHeight: "90%",
+  },
+});

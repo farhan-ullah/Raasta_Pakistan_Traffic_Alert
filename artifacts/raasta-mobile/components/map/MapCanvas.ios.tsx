@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
@@ -11,6 +11,7 @@ import WebMapFallback from "./WebMapFallback";
 import { nativeMapChromeStyles as styles } from "./nativeMapChromeStyles";
 import { MapScreenHeader, MAP_HEADER_OFFSET_BELOW_SAFE } from "./MapScreenHeader";
 import { FeaturedOffersStrip } from "@/components/FeaturedOffersStrip";
+import { MapFloatingSearchPrompt } from "./MapFloatingSearchPrompt";
 import { RoutePlannerCard } from "./RoutePlannerCard";
 import { lineStringToIosLatLng } from "./routeMapUtils";
 import {
@@ -31,6 +32,19 @@ const SEVERITY_COLOR: Record<string, string> = {
   medium: "#f59e0b",
   low: "#16a34a",
 };
+
+const INCIDENT_FEATHER: Record<string, keyof typeof Feather.glyphMap> = {
+  blockage: "slash",
+  construction: "tool",
+  vip_movement: "star",
+  accident: "alert-triangle",
+  congestion: "truck",
+};
+
+function featherForIncidentType(type?: string | null): keyof typeof Feather.glyphMap {
+  const t = type ?? "blockage";
+  return INCIDENT_FEATHER[t] ?? "alert-circle";
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
@@ -53,6 +67,7 @@ function IosGoogleMapScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<any>(null);
   const [_selected, setSelected] = useState<string | null>(null);
+  const [routePlannerOpen, setRoutePlannerOpen] = useState(false);
   const [routePlan, setRoutePlan] = useState<RoutePlanResponse | null>(null);
   const [navDestination, setNavDestination] = useState<NavDestination | null>(null);
   const [navSample, setNavSample] = useState<NavUserSample | null>(null);
@@ -123,15 +138,19 @@ function IosGoogleMapScreen() {
   });
 
   const topPad = insets.top;
-  const activeCount = incidents.filter((i) => i.status === "active").length;
-  const criticalCount = incidents.filter((i) => i.severity === "critical").length;
+  const headerEndY = topPad + MAP_HEADER_OFFSET_BELOW_SAFE;
+  const offersTop = headerEndY - 36;
+  /** Featured strip sits under header curve — place search clearly below strip + green edge */
+  const OFFERS_STRIP_BLOCK = 102;
+  const searchTop = offersTop + OFFERS_STRIP_BLOCK + 10;
+  const myLocTop = searchTop + 58;
 
   useEffect(() => {
     if (!routePlan || navigationActive) return;
     const coords = lineStringToIosLatLng(routePlan.recommended.geometry.coordinates as [number, number][]);
     if (coords.length < 2) return;
     mapRef.current?.fitToCoordinates(coords, {
-      edgePadding: { top: 140, right: 36, bottom: 200, left: 36 },
+      edgePadding: { top: 140, right: 36, bottom: 300, left: 36 },
       animated: true,
     });
   }, [routePlan, navigationActive]);
@@ -233,8 +252,42 @@ function IosGoogleMapScreen() {
               coordinate={{ latitude: incident.lat, longitude: incident.lng }}
               onPress={() => setSelected(key)}
             >
-              <View style={[styles.markerOuter, { borderColor: color }]}>
-                <View style={[styles.markerInner, { backgroundColor: color }]} />
+              <View style={{ alignItems: "center" }} collapsable={false}>
+                <View
+                  style={{
+                    backgroundColor: color,
+                    padding: 8,
+                    borderRadius: 999,
+                    borderWidth: 3,
+                    borderColor: "rgba(255,255,255,0.88)",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 6,
+                    elevation: 4,
+                  }}
+                >
+                  <Feather name={featherForIncidentType(incident.type)} size={14} color="#fff" />
+                </View>
+                <View
+                  style={{
+                    marginTop: 4,
+                    backgroundColor: "#fff",
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 6,
+                    maxWidth: 140,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 3,
+                    elevation: 2,
+                  }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: "800", color }} numberOfLines={1}>
+                    {(incident.title ?? incident.type ?? "Incident").slice(0, 18).toUpperCase()}
+                  </Text>
+                </View>
               </View>
               <Callout tooltip>
                 <View style={[styles.callout, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -258,52 +311,52 @@ function IosGoogleMapScreen() {
       </MapView>
 
       <View style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 30 }} pointerEvents="box-none">
-        <MapScreenHeader subtitle="Islamabad live traffic overview" />
+        <MapScreenHeader
+          subtitle="Civic Vanguard · Islamabad live traffic"
+          onRefreshPress={() => void refetch()}
+          refreshing={isLoading}
+        />
       </View>
 
-      <RoutePlannerCard
-        topOffset={topPad + MAP_HEADER_OFFSET_BELOW_SAFE}
-        onRoutePlanned={plan => {
-          setRoutePlan(plan);
-          if (!plan) setNavDestination(null);
-        }}
-        navigationActive={navigationActive}
-        onStartNavigation={dest => setNavDestination(dest)}
-        onStopNavigation={() => setNavDestination(null)}
+      <FeaturedOffersStrip top={offersTop} />
+
+      <MapFloatingSearchPrompt
+        top={searchTop}
+        onPress={() => setRoutePlannerOpen(true)}
+        onNavPress={() => setRoutePlannerOpen(true)}
       />
 
-      <FeaturedOffersStrip bottom={insets.bottom + 152} />
-
-      <View style={[styles.summary, { bottom: insets.bottom + 90, backgroundColor: colors.card, borderColor: colors.border }]}>
-        {isLoading ? (
-          <ActivityIndicator color="#25a244" size="small" />
-        ) : (
-          <View style={styles.summaryInner}>
-            <View style={styles.summaryCell}>
-              <View style={styles.statBlock}>
-                <Text style={[styles.statNum2, { color: "#ef4444" }]}>{criticalCount}</Text>
-                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Critical</Text>
-              </View>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.summaryCell}>
-              <View style={styles.statBlock}>
-                <Text style={[styles.statNum2, { color: "#25a244" }]}>{activeCount}</Text>
-                <Text style={[styles.statLabel2, { color: colors.mutedForeground }]}>Active</Text>
-              </View>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.summaryCell}>
-              <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn} accessibilityRole="button" accessibilityLabel="Refresh incidents">
-                <Feather name="refresh-cw" size={14} color="#15803d" />
-              </TouchableOpacity>
-            </View>
+      <Modal
+        visible={routePlannerOpen}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setRoutePlannerOpen(false)}
+      >
+        <View style={modalStyles.overlay}>
+          <Pressable style={modalStyles.scrim} onPress={() => setRoutePlannerOpen(false)} accessibilityLabel="Dismiss" />
+          <View style={[modalStyles.sheetWrap, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+            <RoutePlannerCard
+              layout="modalSheet"
+              bottomOffset={0}
+              onClosePress={() => setRoutePlannerOpen(false)}
+              onRoutePlanned={plan => {
+                setRoutePlan(plan);
+                if (!plan) setNavDestination(null);
+              }}
+              navigationActive={navigationActive}
+              onStartNavigation={dest => {
+                setNavDestination(dest);
+                setRoutePlannerOpen(false);
+              }}
+              onStopNavigation={() => setNavDestination(null)}
+            />
           </View>
-        )}
-      </View>
+        </View>
+      </Modal>
 
       <TouchableOpacity
-        style={[styles.myLocBtn, { bottom: insets.bottom + 156 }]}
+        style={[styles.myLocBtn, { top: myLocTop, bottom: undefined }]}
         onPress={() => void recenterOnUserOrCity()}
         activeOpacity={0.9}
         accessibilityLabel="Center map on your location"
@@ -332,6 +385,23 @@ function IosGoogleMapScreen() {
     </View>
   );
 }
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  sheetWrap: {
+    paddingHorizontal: 16,
+    width: "100%",
+    zIndex: 2,
+    maxHeight: "90%",
+  },
+});
 
 export default function MapCanvas() {
   if (!hasGoogleMapsNativeKey()) {

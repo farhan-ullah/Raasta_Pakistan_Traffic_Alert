@@ -12,6 +12,7 @@ import {
   Platform,
   Alert,
   Image,
+  type ViewStyle,
 } from "react-native";
 import { useListIncidents } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
@@ -26,8 +27,8 @@ import type { GeocodePlace } from "@workspace/api-client-react";
 import { getApiOrigin } from "@/constants/apiOrigin";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScreenHero, LivePillSm } from "@/components/ui/ScreenHero";
-import { brandGradientColors, floatShadow } from "@/components/ui/screenTokens";
+import { ScreenHero } from "@/components/ui/ScreenHero";
+import { brandGradientColors, floatShadow, cardShadow } from "@/components/ui/screenTokens";
 
 const BASE = getApiOrigin();
 
@@ -118,7 +119,7 @@ function LoginScreen() {
           ) : null}
 
           <TouchableOpacity
-            style={[styles.loginBtn, { backgroundColor: colors.primary, opacity: loading || !pin.trim() ? 0.6 : 1 }]}
+            style={[styles.loginBtn, { backgroundColor: "#006E26", opacity: loading || !pin.trim() ? 0.6 : 1 }]}
             onPress={handleLogin}
             disabled={loading || !pin.trim()}
           >
@@ -249,74 +250,91 @@ export default function PoliceScreen() {
     }
   };
 
-  const policeHeaderRight = (
-    <View style={styles.headerRight}>
-      <LivePillSm />
-      <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-        <Feather name="log-out" size={18} color="rgba(255,255,255,0.9)" />
+  const policeToolbar = (
+    <View style={styles.policeToolbar}>
+      <Text style={styles.policeBrand}>Raasta Pakistan</Text>
+      <TouchableOpacity style={styles.logoutPill} onPress={logout} accessibilityRole="button" accessibilityLabel="Logout">
+        <Text style={styles.logoutPillText}>Logout</Text>
+        <Feather name="log-out" size={18} color="#fff" />
       </TouchableOpacity>
     </View>
   );
 
-  const statsStrip = (
-    <View style={styles.statsRow}>
-      {[
-        { label: "Active", value: active.length, color: "#ef4444" },
-        { label: "Unverified", value: unverified.length, color: "#f59e0b" },
-        { label: "Citizens", value: citizen.length, color: "#60a5fa" },
-        { label: "Resolved", value: resolved.length, color: "#4ade80" },
-      ].map((s) => (
-        <View key={s.label} style={styles.statCard}>
-          <Text style={[styles.statNum, { color: s.color }]}>{s.value}</Text>
-          <Text style={styles.statLabel}>{s.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: "#f9f9fe" }]}>
       {Platform.OS === "web" ? <View style={{ height: topPad }} /> : null}
       <ScreenHero
+        tall
+        toolbar={policeToolbar}
         eyebrow="Operations"
-        title="Police command"
-        subtitle="Islamabad traffic control"
-        right={policeHeaderRight}
-      >
-        {statsStrip}
-      </ScreenHero>
+        title="Police Command"
+        subtitle="Traffic Control Unit"
+      />
 
-      {/* Tabs */}
-      <View style={[styles.tabs, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        {([
-          { key: "citizen" as Tab, label: "Reports", count: citizen.length },
-          { key: "post" as Tab, label: "Post Alert" },
-          { key: "resolved" as Tab, label: "Resolved", count: resolved.length },
-        ]).map((t) => (
-          <TouchableOpacity key={t.key} style={[styles.tabBtn, tab === t.key && { borderBottomColor: colors.primaryLight, borderBottomWidth: 2 }]} onPress={() => setTab(t.key)}>
-            <Text style={[styles.tabText, { color: tab === t.key ? colors.primaryLight : colors.mutedForeground }]}>{t.label}</Text>
-            {t.count !== undefined && t.count > 0 && (
-              <View style={[styles.tabBadge, { backgroundColor: tab === t.key ? colors.primary : colors.muted }]}>
-                <Text style={[styles.tabBadgeText, { color: tab === t.key ? "#fff" : colors.mutedForeground }]}>{t.count}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+      <View style={styles.statsOverlap}>
+        <View style={styles.statsGrid3}>
+          {[
+            { label: "Active", value: active.length },
+            { label: "Unverified", value: unverified.length },
+            { label: "Resolved", value: resolved.length },
+          ].map((s) => (
+            <View key={s.label} style={[styles.statTile, cardShadow as ViewStyle]}>
+              <Text style={styles.statTileLabel}>{s.label}</Text>
+              <Text
+                style={[
+                  styles.statTileNum,
+                  s.label === "Active" && { color: "#00290f" },
+                  s.label === "Unverified" && { color: "#ba1a1a" },
+                  s.label === "Resolved" && { color: "#006E26" },
+                ]}
+              >
+                {s.value}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.tabPillWrap}>
+          {([
+            { key: "citizen" as Tab, label: "Reports", count: citizen.length },
+            { key: "post" as Tab, label: "Post Alert" },
+            { key: "resolved" as Tab, label: "History", count: resolved.length },
+          ]).map((t) => {
+            const activeTab = tab === t.key;
+            return (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.tabPill, activeTab && styles.tabPillOn]}
+                onPress={() => setTab(t.key)}
+              >
+                <Text style={[styles.tabPillText, activeTab && styles.tabPillTextOn]}>
+                  {t.label}
+                  {t.count !== undefined && t.count > 0 ? ` (${t.count})` : ""}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {tab === "citizen" && (
         <FlatList
           data={[...citizen, ...police]}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={
+            <Text style={styles.listSectionTitle}>Pending reports</Text>
+          }
           renderItem={({ item }) => (
             <IncidentCard
               incident={item as any}
+              variant="civicFeed"
+              policeAccent
               showActions
               onVerify={item.reportedBy === "citizen" ? verifyReport : undefined}
               onResolve={resolveIncident}
             />
           )}
-          contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: bottomPad }}
           refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={colors.primaryLight} />}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -329,7 +347,7 @@ export default function PoliceScreen() {
       )}
 
       {tab === "post" && (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: bottomPad }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Text style={[styles.formTitle, { color: colors.text }]}>Post Official Alert</Text>
 
           <Text style={[styles.inputLabel, { color: colors.subtext }]}>Incident Type</Text>
@@ -447,7 +465,7 @@ export default function PoliceScreen() {
           data={resolved}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <IncidentCard incident={item as any} />}
-          contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: bottomPad }}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Feather name="check-circle" size={40} color={colors.mutedForeground} />
@@ -486,20 +504,74 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerTitle: { fontSize: 18, fontWeight: "900" as const, color: "#fff" },
   headerSub: { fontSize: 10, color: "rgba(255,255,255,0.7)" },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  livePill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#ef444488", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
-  liveText: { color: "#fff", fontSize: 10, fontWeight: "800" as const },
-  logoutBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  statsRow: { flexDirection: "row", gap: 8 },
-  statCard: { flex: 1, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 12, padding: 10, alignItems: "center" },
-  statNum: { fontSize: 22, fontWeight: "800" as const },
-  statLabel: { fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 },
-  tabs: { flexDirection: "row", borderBottomWidth: 1 },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 12 },
-  tabText: { fontSize: 12, fontWeight: "600" as const },
-  tabBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
-  tabBadgeText: { fontSize: 10, fontWeight: "700" as const },
+  policeToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 10,
+  },
+  policeBrand: { color: "#fff", fontSize: 18, fontWeight: "800" as const, flex: 1, marginRight: 12 },
+  logoutPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  logoutPillText: { color: "#fff", fontSize: 13, fontWeight: "600" as const },
+  statsOverlap: { marginTop: -28, paddingHorizontal: 20, zIndex: 2, marginBottom: 8 },
+  statsGrid3: { flexDirection: "row", gap: 12, marginBottom: 18 },
+  statTile: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    gap: 4,
+  },
+  statTileLabel: {
+    fontSize: 10,
+    fontWeight: "800" as const,
+    color: "#414941",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  statTileNum: { fontSize: 28, fontWeight: "900" as const },
+  tabPillWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    backgroundColor: "#f3f3f8",
+    padding: 6,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+  },
+  tabPill: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  tabPillOn: {
+    backgroundColor: "#01411c",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  tabPillText: { fontSize: 13, fontWeight: "700" as const, color: "#414941" },
+  tabPillTextOn: { color: "#fff" },
+  listSectionTitle: {
+    fontSize: 18,
+    fontWeight: "800" as const,
+    color: "#1a1c1f",
+    marginBottom: 12,
+    marginTop: 4,
+    paddingHorizontal: 2,
+  },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 60, gap: 10 },
   emptyText: { fontSize: 14 },
   formTitle: { fontSize: 16, fontWeight: "700" as const, marginBottom: 16 },

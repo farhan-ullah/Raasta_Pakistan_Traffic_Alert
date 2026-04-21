@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
-/** Brand gradient — match map / dashboard */
-export const brandGradientColors = ["#012814", "#01411C", "#0a5c36"] as const;
+/** Brand gradient — civic mock (#01411C → #00290F) */
+export const brandGradientColors = ["#01411C", "#00290F"] as const;
 
 export const cardShadow = Platform.select({
   ios: {

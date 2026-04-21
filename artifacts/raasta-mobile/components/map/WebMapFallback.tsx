@@ -46,7 +46,7 @@ export default function WebMapFallback({
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {Platform.OS === "web" ? <View style={{ height: 56 }} /> : null}
-      <MapScreenHeader subtitle="Islamabad live traffic · list view" />
+      <MapScreenHeader subtitle="Civic Vanguard · list view" onRefreshPress={() => refetch()} refreshing={isLoading} />
 
       <View style={[styles.statsBar, { backgroundColor: colors.card, borderColor: colors.border }, floatShadow]}>
         <View style={styles.statCol}>

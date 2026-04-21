@@ -8,32 +8,35 @@ import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useColors } from "@/hooks/useColors";
 import { AlertBanner } from "@/components/AlertBanner";
+
+const INACTIVE = "#a1a1aa";
+const BRAND = "#006E26";
+const BRAND_SOFT = "#53B46A";
 
 function NativeTabLayout() {
   return (
     <View style={{ flex: 1 }}>
       <NativeTabs>
         <NativeTabs.Trigger name="index">
+          <Icon sf={{ default: "house", selected: "house.fill" }} />
+          <Label>Home</Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="traffic">
+          <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
+          <Label>Updates</Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="report">
+          <Icon sf={{ default: "plus.circle.fill", selected: "plus.circle.fill" }} />
+          <Label>Report</Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="map">
           <Icon sf={{ default: "map", selected: "map.fill" }} />
           <Label>Map</Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="traffic">
-          <Icon sf={{ default: "exclamationmark.triangle", selected: "exclamationmark.triangle.fill" }} />
-          <Label>Traffic</Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="report">
-          <Icon sf={{ default: "camera.circle", selected: "camera.circle.fill" }} />
-          <Label>Report</Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="police">
-          <Icon sf={{ default: "shield", selected: "shield.fill" }} />
-          <Label>Police</Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="dashboard">
-          <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
-          <Label>Dash</Label>
+        <NativeTabs.Trigger name="profile">
+          <Icon sf={{ default: "person", selected: "person.fill" }} />
+          <Label>Profile</Label>
         </NativeTabs.Trigger>
       </NativeTabs>
       <AlertBanner />
@@ -42,7 +45,6 @@ function NativeTabLayout() {
 }
 
 function ClassicTabLayout() {
-  const colors = useColors();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const isDark = colorScheme === "dark";
@@ -51,150 +53,165 @@ function ClassicTabLayout() {
 
   const tabBarFloat = {
     position: "absolute" as const,
-    left: 14,
-    right: 14,
-    bottom: Math.max(insets.bottom, 10),
-    height: isWeb ? 72 : 64,
+    left: 22,
+    right: 22,
+    bottom: Math.max(insets.bottom, 12),
+    height: isWeb ? 76 : 72,
     paddingBottom: 0,
-    paddingTop: 6,
-    borderRadius: 26,
+    paddingTop: 8,
+    borderRadius: 999,
     borderTopWidth: 0,
     borderWidth: 1,
-    borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(1,65,28,0.1)",
-    backgroundColor: isIOS ? "transparent" : isDark ? "rgba(22,22,24,0.92)" : colors.card,
+    borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+    backgroundColor: isIOS ? "transparent" : isDark ? "rgba(24,24,27,0.88)" : "rgba(255,255,255,0.88)",
     ...(isIOS
       ? {
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.18,
-          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: 0.06,
+          shadowRadius: 32,
         }
       : {}),
     ...(!isIOS
       ? {
-          elevation: 16,
+          elevation: 14,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: isWeb ? 0.1 : 0.14,
-          shadowRadius: 18,
+          shadowOpacity: isWeb ? 0.08 : 0.1,
+          shadowRadius: 20,
         }
       : {}),
   };
 
   return (
     <View style={{ flex: 1 }}>
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: "#15803d",
-        tabBarInactiveTintColor: colors.mutedForeground,
-        tabBarShowLabel: true,
-        tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "700",
-          letterSpacing: 0.15,
-          marginTop: -2,
-        },
-        tabBarItemStyle: {
-          paddingVertical: 4,
-        },
-        tabBarStyle: tabBarFloat,
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={88}
-              tint={isDark ? "dark" : "light"}
-              style={[StyleSheet.absoluteFill, { borderRadius: 26, overflow: "hidden" }]}
-            />
-          ) : (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  borderRadius: 26,
-                  overflow: "hidden",
-                  backgroundColor: isWeb ? (isDark ? "rgba(22,22,24,0.95)" : "rgba(255,255,255,0.95)") : undefined,
-                },
-              ]}
-            />
-          ),
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Map",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="map.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="map-pin" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="traffic"
-        options={{
-          title: "Traffic",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="exclamationmark.triangle.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="alert-triangle" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="report"
-        options={{
-          title: "Report",
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView name="camera.circle.fill" tintColor={focused ? "#fff" : color} size={28} />
-            ) : (
-              <Feather name="camera" size={24} color={focused ? "#fff" : color} />
-            ),
-          tabBarItemStyle: { flex: 1 },
-          tabBarIconStyle: {
-            backgroundColor: "#01411C",
-            borderRadius: 20,
-            width: 48,
-            height: 48,
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 4,
-            marginTop: -12,
+      <Tabs
+        initialRouteName="index"
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: isDark ? BRAND_SOFT : BRAND,
+          tabBarInactiveTintColor: isDark ? "#71717a" : INACTIVE,
+          tabBarShowLabel: true,
+          tabBarHideOnKeyboard: true,
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: "600",
+            letterSpacing: 0.1,
+            marginTop: 2,
+            transform: [{ scale: 0.92 }],
           },
-          tabBarLabelStyle: { color: "#25a244", fontWeight: "600", fontSize: 10 },
-        }}
-      />
-      <Tabs.Screen
-        name="police"
-        options={{
-          title: "Police",
-          tabBarIcon: ({ color }) =>
+          tabBarItemStyle: {
+            paddingVertical: 2,
+          },
+          tabBarStyle: tabBarFloat,
+          tabBarBackground: () =>
             isIOS ? (
-              <SymbolView name="shield.fill" tintColor={color} size={24} />
+              <BlurView
+                intensity={90}
+                tint={isDark ? "dark" : "light"}
+                style={[StyleSheet.absoluteFill, { borderRadius: 999, overflow: "hidden" }]}
+              />
             ) : (
-              <Feather name="shield" size={22} color={color} />
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  {
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    backgroundColor: isWeb ? (isDark ? "rgba(24,24,27,0.92)" : "rgba(255,255,255,0.92)") : undefined,
+                  },
+                ]}
+              />
             ),
         }}
-      />
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: "Dash",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="chart.bar.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="bar-chart-2" size={22} color={color} />
-            ),
-        }}
-      />
-    </Tabs>
-    <AlertBanner />
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Home",
+            tabBarIcon: ({ color }) =>
+              isIOS ? (
+                <SymbolView name="house.fill" tintColor={color} size={22} />
+              ) : (
+                <Feather name="home" size={22} color={color} />
+              ),
+          }}
+        />
+        <Tabs.Screen
+          name="traffic"
+          options={{
+            title: "Updates",
+            tabBarIcon: ({ color }) =>
+              isIOS ? (
+                <SymbolView name="chart.bar.fill" tintColor={color} size={22} />
+              ) : (
+                <Feather name="bar-chart-2" size={22} color={color} />
+              ),
+          }}
+        />
+        <Tabs.Screen
+          name="report"
+          options={{
+            title: "Report",
+            tabBarIcon: ({ focused }) =>
+              isIOS ? (
+                <SymbolView name="plus.circle.fill" tintColor="#fff" size={30} />
+              ) : (
+                <Feather name="plus-circle" size={30} color="#fff" />
+              ),
+            tabBarItemStyle: {
+              marginTop: -20,
+              zIndex: 20,
+            },
+            tabBarIconStyle: {
+              backgroundColor: BRAND,
+              borderRadius: 32,
+              width: 56,
+              height: 56,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 2,
+              shadowColor: BRAND,
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.35,
+              shadowRadius: 12,
+              elevation: 10,
+            },
+            tabBarLabelStyle: {
+              color: isDark ? BRAND_SOFT : BRAND,
+              fontWeight: "800",
+              fontSize: 12,
+              marginTop: 6,
+            },
+          }}
+        />
+        <Tabs.Screen
+          name="map"
+          options={{
+            title: "Map",
+            tabBarIcon: ({ color }) =>
+              isIOS ? (
+                <SymbolView name="map.fill" tintColor={color} size={24} />
+              ) : (
+                <Feather name="compass" size={24} color={color} />
+              ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+            tabBarIcon: ({ color }) =>
+              isIOS ? (
+                <SymbolView name="person.fill" tintColor={color} size={22} />
+              ) : (
+                <Feather name="user" size={22} color={color} />
+              ),
+          }}
+        />
+        <Tabs.Screen name="police" options={{ href: null }} />
+      </Tabs>
+      <AlertBanner />
     </View>
   );
 }

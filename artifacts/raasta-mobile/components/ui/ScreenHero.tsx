@@ -6,40 +6,44 @@ import { brandGradientColors } from "./screenTokens";
 
 type Props = {
   eyebrow?: string;
+  preTitleRow?: React.ReactNode;
   title: string;
   subtitle?: string;
-  /** Trailing control (e.g. LIVE, Owner) */
   right?: React.ReactNode;
-  /** Filters, search row — rendered below title */
+  /** Full-width row under safe area (menu, avatar, etc.). */
+  toolbar?: React.ReactNode;
   children?: React.ReactNode;
+  tall?: boolean;
 };
 
-/** Gradient masthead aligned with map / dashboard analytics */
-export function ScreenHero({ eyebrow, title, subtitle, right, children }: Props) {
+export function ScreenHero({ eyebrow, preTitleRow, title, subtitle, right, toolbar, children, tall }: Props) {
   const insets = useSafeAreaInsets();
 
   return (
     <LinearGradient
       colors={[...brandGradientColors]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
       style={[
         styles.wrap,
         {
-          paddingTop: insets.top + 12,
-          paddingBottom: children ? 14 : 18,
+          paddingTop: insets.top + 10,
+          paddingBottom: children ? 16 : tall ? 44 : 22,
+          minHeight: tall ? 200 : undefined,
         },
         Platform.select({
-          ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10 },
-          android: { elevation: 12 },
+          ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+          android: { elevation: 14 },
           default: {},
         }),
       ]}
     >
+      {toolbar}
       <View style={styles.topRow}>
         <View style={styles.textCol}>
-          {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-          <Text style={styles.title}>{title}</Text>
+          {preTitleRow ? <View style={styles.preTitle}>{preTitleRow}</View> : null}
+          {eyebrow && !preTitleRow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
+          <Text style={[styles.title, tall && styles.titleTall]}>{title}</Text>
           {subtitle ? <Text style={styles.sub}>{subtitle}</Text> : null}
         </View>
         {right ? <View style={styles.right}>{right}</View> : null}
@@ -49,7 +53,6 @@ export function ScreenHero({ eyebrow, title, subtitle, right, children }: Props)
   );
 }
 
-/** Compact LIVE indicator — same language as map header */
 export function LivePillSm() {
   return (
     <View style={styles.liveOuter}>
@@ -63,46 +66,52 @@ export function LivePillSm() {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: 18,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 48,
+    borderBottomRightRadius: 48,
   },
-  topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  topRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginTop: 4 },
   textCol: { flex: 1 },
-  right: { alignItems: "flex-end", justifyContent: "flex-start" },
+  preTitle: { marginBottom: 6 },
+  right: { alignItems: "flex-end", justifyContent: "flex-end", paddingBottom: 2 },
   eyebrow: {
     fontSize: 10,
     fontWeight: "800",
     color: "rgba(255,255,255,0.55)",
-    letterSpacing: 1.4,
+    letterSpacing: 2,
     textTransform: "uppercase",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "900",
     color: "#fff",
     letterSpacing: -0.8,
+    lineHeight: 34,
+  },
+  titleTall: {
+    fontSize: 34,
+    lineHeight: 38,
   },
   sub: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.88)",
-    marginTop: 6,
+    fontSize: 14,
+    color: "rgba(255,255,255,0.82)",
+    marginTop: 8,
     fontWeight: "600",
-    lineHeight: 18,
+    lineHeight: 20,
   },
   liveOuter: { borderRadius: 999, padding: 2, backgroundColor: "rgba(255,255,255,0.12)" },
   liveInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(239,68,68,0.35)",
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    backgroundColor: "rgba(185, 28, 28, 0.45)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.35)",
   },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#4ade80" },
-  liveTxt: { color: "#fff", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
+  liveTxt: { color: "#fff", fontSize: 9, fontWeight: "900", letterSpacing: 0.6 },
 });

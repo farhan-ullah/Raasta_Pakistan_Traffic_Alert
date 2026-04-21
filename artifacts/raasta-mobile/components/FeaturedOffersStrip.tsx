@@ -18,14 +18,14 @@ import {
 import { useColors } from "@/hooks/useColors";
 
 type Props = {
-  /** Distance from bottom of safe area (points). */
-  bottom: number;
+  /** Distance from top of screen (below header overlap). */
+  top: number;
 };
 
 /**
  * Horizontal featured offers — parity with web home strip; taps open native offer detail.
  */
-export function FeaturedOffersStrip({ bottom }: Props) {
+export function FeaturedOffersStrip({ top }: Props) {
   const colors = useColors();
   const { data: featuredRaw, isLoading: loadF } = useGetFeaturedOffers({
     query: { refetchInterval: 60_000, queryKey: getGetFeaturedOffersQueryKey() } as any,
@@ -45,10 +45,8 @@ export function FeaturedOffersStrip({ bottom }: Props) {
 
   if (loading && offers.length === 0) {
     return (
-      <View
-        style={[styles.wrap, styles.shadow, { bottom, backgroundColor: colors.card, borderColor: colors.border }]}
-      >
-        <ActivityIndicator size="small" color="#15803d" />
+      <View style={[styles.loaderWrap, { top }]}>
+        <ActivityIndicator size="small" color="#006E26" />
       </View>
     );
   }
@@ -56,114 +54,121 @@ export function FeaturedOffersStrip({ bottom }: Props) {
   if (offers.length === 0) return null;
 
   return (
-    <View
-      style={[styles.wrap, styles.shadow, { bottom, backgroundColor: colors.card, borderColor: colors.border }]}
-      pointerEvents="box-none"
-    >
-      <View style={styles.rowTitle}>
-        <View style={styles.titleRow}>
-          <View style={[styles.spark, { backgroundColor: colors.accent }]}>
-            <Feather name="tag" size={14} color="#15803d" />
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>Featured offers</Text>
-        </View>
-        <Pressable
-          onPress={() => router.push("/offers" as Href)}
-          hitSlop={8}
-        >
-          <Text style={styles.seeAll}>See all</Text>
-        </Pressable>
-      </View>
+    <View style={[styles.strip, { top }]} pointerEvents="box-none">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {offers.map(offer => (
+        {offers.map((offer, idx) => (
           <Pressable
             key={offer.id}
-            style={[styles.card, styles.cardShadow, { borderColor: colors.border, backgroundColor: colors.background }]}
+            style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]}
             onPress={() => router.push(`/offers/${offer.id}` as Href)}
           >
-            <View style={styles.cardTop}>
-              {offer.discountPercent != null ? (
-                <Text style={styles.pct}>{Math.round(offer.discountPercent)}%</Text>
-              ) : (
-                <Text style={styles.pctSm}>Deal</Text>
-              )}
+            <View
+              style={[
+                styles.iconTile,
+                { backgroundColor: idx % 2 === 0 ? "#b4f1bc" : "#82f98e" },
+              ]}
+            >
+              <Feather
+                name={idx % 2 === 0 ? "droplet" : "award"}
+                size={20}
+                color={idx % 2 === 0 ? "#01411c" : "#007329"}
+              />
             </View>
-            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
-              {offer.title}
-            </Text>
-            <Text style={[styles.merchant, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {offer.merchantName}
-            </Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.kicker} numberOfLines={1}>
+                {offer.merchantName ?? "Partner"}
+              </Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
+                {offer.title}
+              </Text>
+            </View>
           </Pressable>
         ))}
+        <Pressable onPress={() => router.push("/offers" as Href)} hitSlop={8} style={styles.seeAllChip}>
+          <Text style={styles.seeAllText}>See all</Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
 }
 
-const shadow = Platform.select({
+const cardShadow = Platform.select({
   ios: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
-  android: { elevation: 7 },
+  android: { elevation: 3 },
   default: {},
 });
 
 const styles = StyleSheet.create({
-  wrap: {
+  strip: {
     position: "absolute",
-    left: 12,
-    right: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    maxHeight: 138,
-    zIndex: 40,
+    left: 0,
+    right: 0,
+    zIndex: 22,
+    paddingHorizontal: 24,
   },
-  shadow,
-  rowTitle: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  loaderWrap: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    zIndex: 22,
+    paddingVertical: 12,
     alignItems: "center",
-    marginBottom: 8,
   },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  spark: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
+  scroll: {
+    gap: 12,
+    paddingRight: 8,
+    paddingBottom: 8,
   },
-  title: { fontSize: 13, fontWeight: "800" },
-  seeAll: { fontSize: 12, fontWeight: "700", color: "#15803d" },
-  scroll: { gap: 10, paddingRight: 8 },
   card: {
-    width: 130,
-    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 220,
+    maxWidth: 280,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.9)",
     borderWidth: 1,
-    padding: 10,
+    borderColor: "rgba(255,255,255,0.2)",
+    ...cardShadow,
   },
-  cardShadow: Platform.select({
-    ios: {
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 6,
-    },
-    android: { elevation: 2 },
-    default: {},
-  }),
-  cardTop: {
-    minHeight: 28,
+  iconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
     justifyContent: "center",
   },
-  pct: { fontSize: 20, fontWeight: "900", color: "#15803d" },
-  pctSm: { fontSize: 12, fontWeight: "800", color: "#15803d" },
-  cardTitle: { fontSize: 11, fontWeight: "700", marginTop: 2 },
-  merchant: { fontSize: 10, marginTop: 2 },
+  kicker: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#414941",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  seeAllChip: {
+    alignSelf: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.75)",
+    borderWidth: 1,
+    borderColor: "rgba(1,65,28,0.12)",
+  },
+  seeAllText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#006E26",
+  },
 });
