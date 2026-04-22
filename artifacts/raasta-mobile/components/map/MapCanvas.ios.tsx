@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Platform } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useGetActiveMapIncidents } from "@workspace/api-client-react";
@@ -142,8 +143,8 @@ function IosGoogleMapScreen() {
   const offersTop = headerEndY - 36;
   /** Featured strip sits under header curve — place search clearly below strip + green edge */
   const OFFERS_STRIP_BLOCK = 102;
-  const searchTop = offersTop + OFFERS_STRIP_BLOCK + 10;
-  const myLocTop = searchTop + 58;
+  const searchTop = offersTop + OFFERS_STRIP_BLOCK + 5;
+  const myLocTop = navigationActive ? headerEndY + 82 : searchTop + 58;
 
   useEffect(() => {
     if (!routePlan || navigationActive) return;
@@ -162,6 +163,9 @@ function IosGoogleMapScreen() {
     ? lineStringToIosLatLng(routePlan.recommended.geometry.coordinates as [number, number][])
     : [];
   const abCoords = recIos.length > 0 ? { a: recIos[0]!, b: recIos[recIos.length - 1]! } : null;
+  const rec = routePlan?.recommended;
+  const navEtaMins = rec ? Math.max(1, Math.round(rec.durationSeconds / 60)) : null;
+  const navDistanceKm = rec ? (rec.distanceMeters / 1000).toFixed(1) : null;
 
   return (
     <View style={styles.container}>
@@ -318,13 +322,32 @@ function IosGoogleMapScreen() {
         />
       </View>
 
-      <FeaturedOffersStrip top={offersTop} />
+      {!navigationActive && !routePlannerOpen ? <FeaturedOffersStrip top={offersTop} /> : null}
 
-      <MapFloatingSearchPrompt
-        top={searchTop}
-        onPress={() => setRoutePlannerOpen(true)}
-        onNavPress={() => setRoutePlannerOpen(true)}
-      />
+      {!navigationActive ? (
+        <MapFloatingSearchPrompt
+          top={searchTop}
+          onPress={() => setRoutePlannerOpen(true)}
+          onNavPress={() => setRoutePlannerOpen(true)}
+        />
+      ) : null}
+
+      {navigationActive && rec ? (
+        <View style={[modalStyles.navHud, { top: headerEndY + 6 }]}>
+          <View style={modalStyles.navHudLeft}>
+            <View style={modalStyles.navPulse} />
+            <Text style={modalStyles.navHudTitle}>Navigation Active</Text>
+          </View>
+          <View style={modalStyles.navStats}>
+            <Text style={modalStyles.navStatText}>{navEtaMins} min</Text>
+            <Text style={modalStyles.navDot}>•</Text>
+            <Text style={modalStyles.navStatText}>{navDistanceKm} km</Text>
+          </View>
+          <TouchableOpacity style={modalStyles.stopNavBtn} onPress={() => setNavDestination(null)}>
+            <Text style={modalStyles.stopNavTxt}>Stop</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <Modal
         visible={routePlannerOpen}
@@ -335,28 +358,34 @@ function IosGoogleMapScreen() {
       >
         <View style={modalStyles.overlay}>
           <Pressable style={modalStyles.scrim} onPress={() => setRoutePlannerOpen(false)} accessibilityLabel="Dismiss" />
-          <View style={[modalStyles.sheetWrap, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
-            <RoutePlannerCard
-              layout="modalSheet"
-              bottomOffset={0}
-              onClosePress={() => setRoutePlannerOpen(false)}
-              onRoutePlanned={plan => {
-                setRoutePlan(plan);
-                if (!plan) setNavDestination(null);
-              }}
-              navigationActive={navigationActive}
-              onStartNavigation={dest => {
-                setNavDestination(dest);
-                setRoutePlannerOpen(false);
-              }}
-              onStopNavigation={() => setNavDestination(null)}
-            />
-          </View>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ width: "100%" }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? Math.max(insets.top, 6) : 0}
+          >
+            <View style={[modalStyles.sheetWrap, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+              <RoutePlannerCard
+                layout="modalSheet"
+                bottomOffset={0}
+                onClosePress={() => setRoutePlannerOpen(false)}
+                onRoutePlanned={plan => {
+                  setRoutePlan(plan);
+                  if (!plan) setNavDestination(null);
+                }}
+                navigationActive={navigationActive}
+                onStartNavigation={dest => {
+                  setNavDestination(dest);
+                  setRoutePlannerOpen(false);
+                }}
+                onStopNavigation={() => setNavDestination(null)}
+              />
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       <TouchableOpacity
-        style={[styles.myLocBtn, { top: myLocTop, bottom: undefined }]}
+        style={[styles.myLocBtn, { top: myLocTop, bottom: undefined, right: navigationActive ? 18 : 14 }]}
         onPress={() => void recenterOnUserOrCity()}
         activeOpacity={0.9}
         accessibilityLabel="Center map on your location"
@@ -387,6 +416,29 @@ function IosGoogleMapScreen() {
 }
 
 const modalStyles = StyleSheet.create({
+  navHud: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    zIndex: 35,
+    backgroundColor: "rgba(1,20,9,0.88)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  navHudLeft: { flexDirection: "row", alignItems: "center", gap: 7 },
+  navPulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4ade80" },
+  navHudTitle: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  navStats: { flexDirection: "row", alignItems: "center", marginLeft: "auto", gap: 6 },
+  navDot: { color: "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: "700" },
+  navStatText: { color: "rgba(255,255,255,0.92)", fontSize: 12, fontWeight: "700" },
+  stopNavBtn: { backgroundColor: "rgba(185,28,28,0.9)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  stopNavTxt: { color: "#fff", fontSize: 11, fontWeight: "800" },
   overlay: {
     flex: 1,
     justifyContent: "flex-end",

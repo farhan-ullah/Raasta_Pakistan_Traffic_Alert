@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Platform } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   MapView,
@@ -189,9 +190,9 @@ export default function MapCanvas() {
   const headerEndY = topPad + MAP_HEADER_OFFSET_BELOW_SAFE;
   const offersTop = headerEndY - 36;
   const OFFERS_STRIP_BLOCK = 102;
-  const searchTop = offersTop + OFFERS_STRIP_BLOCK + 10;
+  const searchTop = offersTop + OFFERS_STRIP_BLOCK + 5;
   const tabBarPad = Math.max(insets.bottom, 10) + 100;
-  const myLocTop = searchTop + 58;
+  const myLocTop = navigationActive ? headerEndY + 82 : searchTop + 58;
 
   const mapStyle = useMemo(() => OSM_MAP_STYLE, []);
 
@@ -211,6 +212,9 @@ export default function MapCanvas() {
   const routeCoords = routePlan?.recommended.geometry.coordinates as [number, number][] | undefined;
   const routeStart = routeCoords?.[0];
   const routeEnd = routeCoords && routeCoords.length > 1 ? routeCoords[routeCoords.length - 1] : undefined;
+  const rec = routePlan?.recommended;
+  const navEtaMins = rec ? Math.max(1, Math.round(rec.durationSeconds / 60)) : null;
+  const navDistanceKm = rec ? (rec.distanceMeters / 1000).toFixed(1) : null;
 
   /** Geo-anchored circles (not MarkerView) so pins stay fixed when zooming, like UserLocation. */
   const incidentsGeoJson = useMemo((): GeoJSON.FeatureCollection => {
@@ -415,13 +419,32 @@ export default function MapCanvas() {
         />
       </View>
 
-      <FeaturedOffersStrip top={offersTop} />
+      {!navigationActive && !routePlannerOpen ? <FeaturedOffersStrip top={offersTop} /> : null}
 
-      <MapFloatingSearchPrompt
-        top={searchTop}
-        onPress={() => setRoutePlannerOpen(true)}
-        onNavPress={() => setRoutePlannerOpen(true)}
-      />
+      {!navigationActive ? (
+        <MapFloatingSearchPrompt
+          top={searchTop}
+          onPress={() => setRoutePlannerOpen(true)}
+          onNavPress={() => setRoutePlannerOpen(true)}
+        />
+      ) : null}
+
+      {navigationActive && rec ? (
+        <View style={[androidModalStyles.navHud, { top: headerEndY + 6 }]}>
+          <View style={androidModalStyles.navHudLeft}>
+            <View style={androidModalStyles.navPulse} />
+            <Text style={androidModalStyles.navHudTitle}>Navigation Active</Text>
+          </View>
+          <View style={androidModalStyles.navStats}>
+            <Text style={androidModalStyles.navStatText}>{navEtaMins} min</Text>
+            <Text style={androidModalStyles.navDot}>•</Text>
+            <Text style={androidModalStyles.navStatText}>{navDistanceKm} km</Text>
+          </View>
+          <TouchableOpacity style={androidModalStyles.stopNavBtn} onPress={() => setNavDestination(null)}>
+            <Text style={androidModalStyles.stopNavTxt}>Stop</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <Modal
         visible={routePlannerOpen}
@@ -432,23 +455,29 @@ export default function MapCanvas() {
       >
         <View style={androidModalStyles.overlay}>
           <Pressable style={androidModalStyles.scrim} onPress={() => setRoutePlannerOpen(false)} accessibilityLabel="Dismiss" />
-          <View style={[androidModalStyles.sheetWrap, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
-            <RoutePlannerCard
-              layout="modalSheet"
-              bottomOffset={0}
-              onClosePress={() => setRoutePlannerOpen(false)}
-              onRoutePlanned={plan => {
-                setRoutePlan(plan);
-                if (!plan) setNavDestination(null);
-              }}
-              navigationActive={navigationActive}
-              onStartNavigation={dest => {
-                setNavDestination(dest);
-                setRoutePlannerOpen(false);
-              }}
-              onStopNavigation={() => setNavDestination(null)}
-            />
-          </View>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ width: "100%" }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? Math.max(insets.top, 6) : 0}
+          >
+            <View style={[androidModalStyles.sheetWrap, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+              <RoutePlannerCard
+                layout="modalSheet"
+                bottomOffset={0}
+                onClosePress={() => setRoutePlannerOpen(false)}
+                onRoutePlanned={plan => {
+                  setRoutePlan(plan);
+                  if (!plan) setNavDestination(null);
+                }}
+                navigationActive={navigationActive}
+                onStartNavigation={dest => {
+                  setNavDestination(dest);
+                  setRoutePlannerOpen(false);
+                }}
+                onStopNavigation={() => setNavDestination(null)}
+              />
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -457,7 +486,7 @@ export default function MapCanvas() {
           style={[
             styles.summary,
             {
-              bottom: tabBarPad + 340,
+              bottom: tabBarPad + 170,
               backgroundColor: colors.card,
               borderColor: colors.border,
             },
@@ -488,7 +517,7 @@ export default function MapCanvas() {
       ) : null}
 
       <TouchableOpacity
-        style={[styles.myLocBtn, { top: myLocTop, bottom: undefined }]}
+        style={[styles.myLocBtn, { top: myLocTop, bottom: undefined, right: navigationActive ? 18 : 14 }]}
         onPress={() => void recenterOnUserOrCity()}
         activeOpacity={0.9}
         accessibilityLabel="Center map on your location"
@@ -519,6 +548,29 @@ export default function MapCanvas() {
 }
 
 const androidModalStyles = StyleSheet.create({
+  navHud: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    zIndex: 35,
+    backgroundColor: "rgba(1,20,9,0.88)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  navHudLeft: { flexDirection: "row", alignItems: "center", gap: 7 },
+  navPulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4ade80" },
+  navHudTitle: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  navStats: { flexDirection: "row", alignItems: "center", marginLeft: "auto", gap: 6 },
+  navDot: { color: "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: "700" },
+  navStatText: { color: "rgba(255,255,255,0.92)", fontSize: 12, fontWeight: "700" },
+  stopNavBtn: { backgroundColor: "rgba(185,28,28,0.9)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  stopNavTxt: { color: "#fff", fontSize: 11, fontWeight: "800" },
   overlay: {
     flex: 1,
     justifyContent: "flex-end",

@@ -15,6 +15,8 @@ import { currentLocationPlace, type GeocodePlace } from "@workspace/api-client-r
 import { planRoute, type RoutePlanResponse } from "@/api/routePlan";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import { useColors } from "@/hooks/useColors";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { nativeMapChromeStyles as styles } from "./nativeMapChromeStyles";
 import { formatRouteDistance, formatRouteDuration } from "./routeMapUtils";
 
@@ -62,6 +64,7 @@ export function RoutePlannerCard({
   onClosePress,
 }: RoutePlannerCardProps) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [fromText, setFromText] = useState("");
   const [toText, setToText] = useState("");
   const [fromPlace, setFromPlace] = useState<GeocodePlace | null>(null);
@@ -210,35 +213,9 @@ export function RoutePlannerCard({
           },
         ];
 
-  return (
-    <View style={wrapStyle}>
-      <View style={[styles.routePlannerHeader, { paddingBottom: 12 }]}>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text style={[styles.routePlannerTitle, { color: "#01411c" }]}>Route Planner</Text>
-            <View style={local.badge}>
-              <Text style={local.badgeText}>{badge}</Text>
-            </View>
-          </View>
-        </View>
-        {summary ? (
-          <TouchableOpacity onPress={clearRoute} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear route">
-            <Feather name="x" size={22} color="#717970" />
-          </TouchableOpacity>
-        ) : onClosePress ? (
-          <TouchableOpacity onPress={onClosePress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <Feather name="x" size={22} color="#717970" />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ maxHeight: 340 }}
-        contentContainerStyle={{ paddingBottom: 22, paddingHorizontal: 24 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {navigationActive ? (
+  const plannerScrollInner = (
+    <>
+      {navigationActive ? (
           <Text style={{ fontSize: 11, fontWeight: "800", color: "#006E26", marginBottom: 8 }}>Navigating</Text>
         ) : null}
 
@@ -425,7 +402,55 @@ export function RoutePlannerCard({
             ) : null}
           </View>
         ) : null}
-      </ScrollView>
+    </>
+  );
+
+  return (
+    <View style={wrapStyle}>
+      <View style={[styles.routePlannerHeader, { paddingBottom: 12 }]}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[styles.routePlannerTitle, { color: "#01411c" }]}>Route Planner</Text>
+            <View style={local.badge}>
+              <Text style={local.badgeText}>{badge}</Text>
+            </View>
+          </View>
+        </View>
+        {summary ? (
+          <TouchableOpacity onPress={clearRoute} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear route">
+            <Feather name="x" size={22} color="#717970" />
+          </TouchableOpacity>
+        ) : onClosePress ? (
+          <TouchableOpacity onPress={onClosePress} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+            <Feather name="x" size={22} color="#717970" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {layout === "modalSheet" ? (
+        <KeyboardAwareScrollViewCompat
+          keyboardShouldPersistTaps="handled"
+          style={{ maxHeight: 380 }}
+          contentContainerStyle={{
+            paddingBottom: Math.max(22, insets.bottom + 12),
+            paddingHorizontal: 24,
+          }}
+          showsVerticalScrollIndicator={false}
+          bottomOffset={Math.max(insets.bottom, 12) + 18}
+          extraKeyboardSpace={22}
+        >
+          {plannerScrollInner}
+        </KeyboardAwareScrollViewCompat>
+      ) : (
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          style={{ maxHeight: 340 }}
+          contentContainerStyle={{ paddingBottom: 22, paddingHorizontal: 24 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {plannerScrollInner}
+        </ScrollView>
+      )}
     </View>
   );
 }
