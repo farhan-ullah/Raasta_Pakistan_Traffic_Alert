@@ -7,6 +7,8 @@ import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
 import geocodeRouter from "./geocode";
 import routingRouter from "./routing";
+import announcementsRouter from "./announcements";
+import usersRouter from "./users";
 
 const router: IRouter = Router();
 
@@ -18,5 +20,7 @@ router.use(incidentsRouter);
 router.use(merchantsRouter);
 router.use(offersRouter);
 router.use(dashboardRouter);
+router.use(announcementsRouter);
+router.use(usersRouter);
 
 export default router;

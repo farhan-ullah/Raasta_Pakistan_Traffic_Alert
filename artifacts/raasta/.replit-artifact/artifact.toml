@@ -1,0 +1,25 @@
+kind = "mobile"
+previewPath = "/"
+title = "Raasta - Pakistan Traffic Alert"
+version = "1.0.0"
+id = "artifacts/raasta"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+name = "expo"
+paths = [ "/" ]
+localPort = 20781
+
+[services.development]
+run = "bash /home/runner/workspace/artifacts/raasta/start.sh"
+
+[services.production]
+build = [ "bash", "-c", "cd /home/runner/workspace/artifacts/raasta && flutter build web --release" ]
+run = [ "bash", "-c", "cd /home/runner/workspace/artifacts/raasta && python3 -m http.server $PORT --directory build/web" ]
+
+[services.env]
+PORT = "20781"
