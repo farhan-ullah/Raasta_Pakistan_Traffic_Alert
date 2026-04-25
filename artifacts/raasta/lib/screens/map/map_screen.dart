@@ -698,7 +698,6 @@ class _MapScreenState extends State<MapScreen>
                       .whereType<Marker>()
                       .toList(),
                 ),
-
             ],
           ),
 
@@ -1291,8 +1290,9 @@ class _NavPanelState extends State<_NavPanel>
             // ── Suggestions — only this Consumer rebuilds on search results ──
             Consumer<RouteProvider>(
               builder: (_, rp, __) {
-                if (!_expanded || rp.suggestions.isEmpty)
+                if (!_expanded || rp.suggestions.isEmpty) {
                   return const SizedBox.shrink();
+                }
                 final isFrom = _activeField == 'from';
                 final col = isFrom
                     ? AppTheme.successGreen

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/raasta_widgets.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -15,30 +14,38 @@ class _ReportScreenState extends State<ReportScreen> {
   final _detailCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  
+
   bool _submitting = false;
   bool _submitted = false;
 
   final _types = [
     {'value': 'blockage', 'label': 'Road Blocked', 'icon': Icons.block_rounded},
     {'value': 'accident', 'label': 'Accident', 'icon': Icons.car_crash_rounded},
-    {'value': 'construction', 'label': 'Construction', 'icon': Icons.construction_rounded},
-    {'value': 'congestion', 'label': 'Traffic Jam', 'icon': Icons.traffic_rounded},
+    {
+      'value': 'construction',
+      'label': 'Construction',
+      'icon': Icons.construction_rounded,
+    },
+    {
+      'value': 'congestion',
+      'label': 'Traffic Jam',
+      'icon': Icons.traffic_rounded,
+    },
   ];
 
   void _submit() async {
     if (_locationCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a location')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a location')));
       return;
     }
-    
+
     setState(() => _submitting = true);
-    
+
     // Simulate network request
     await Future.delayed(const Duration(seconds: 2));
-    
+
     if (mounted) {
       setState(() {
         _submitting = false;
@@ -73,9 +80,15 @@ class _ReportScreenState extends State<ReportScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: const Color(0xFFC0C9BE).withOpacity(0.35)),
+                  border: Border.all(
+                    color: const Color(0xFFC0C9BE).withOpacity(0.35),
+                  ),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 8)),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
                   ],
                 ),
                 child: Column(
@@ -89,18 +102,30 @@ class _ReportScreenState extends State<ReportScreen> {
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.check_circle_rounded, size: 48, color: Color(0xFF006E26)),
+                      child: const Icon(
+                        Icons.check_circle_rounded,
+                        size: 48,
+                        color: Color(0xFF006E26),
+                      ),
                     ),
                     const SizedBox(height: 14),
                     const Text(
                       'Report submitted',
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF1a1c1f)),
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1a1c1f),
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 14),
                     const Text(
                       'Your incident report is now live. Local police authorities may contact you to verify details if necessary.',
-                      style: TextStyle(fontSize: 16, color: Color(0xFF414941), height: 1.5),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF414941),
+                        height: 1.5,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
@@ -111,11 +136,19 @@ class _ReportScreenState extends State<ReportScreen> {
                           backgroundColor: const Color(0xFF006E26),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: _reset,
-                        child: const Text('Report another', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        child: const Text(
+                          'Report another',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -142,7 +175,14 @@ class _ReportScreenState extends State<ReportScreen> {
               padding: const EdgeInsets.fromLTRB(22, 8, 22, 120),
               children: [
                 const SizedBox(height: 18),
-                const Text('What happened?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF01411c))),
+                const Text(
+                  'What happened?',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF01411c),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -169,22 +209,36 @@ class _ReportScreenState extends State<ReportScreen> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      _buildTypeTile(
-                        {'value': 'vip_movement', 'label': 'VIP Movement', 'icon': Icons.star_rounded},
-                        fullWidth: true,
-                      ),
+                      _buildTypeTile({
+                        'value': 'vip_movement',
+                        'label': 'VIP Movement',
+                        'icon': Icons.star_rounded,
+                      }, fullWidth: true),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 18),
-                const Text('Location', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF01411c))),
-                const Text('Search any place — region is set automatically.', style: TextStyle(fontSize: 12, color: Color(0xFF414941))),
+                const Text(
+                  'Location',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF01411c),
+                  ),
+                ),
+                const Text(
+                  'Search any place — region is set automatically.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF414941)),
+                ),
                 const SizedBox(height: 10),
                 RaastTextField(
                   controller: _locationCtrl,
                   hintText: 'e.g. DHA Lahore, F-7 Islamabad...',
-                  prefixIcon: const Icon(Icons.location_on_rounded, color: Color(0xFF717970)),
+                  prefixIcon: const Icon(
+                    Icons.location_on_rounded,
+                    color: Color(0xFF717970),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 RaastTextField(
@@ -193,7 +247,14 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
 
                 const SizedBox(height: 18),
-                const Text('Description (optional)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF01411c))),
+                const Text(
+                  'Description (optional)',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF01411c),
+                  ),
+                ),
                 const SizedBox(height: 10),
                 RaastTextField(
                   controller: _descCtrl,
@@ -210,7 +271,10 @@ class _ReportScreenState extends State<ReportScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 80), // offset above the pill nav
+        padding: const EdgeInsets.symmetric(
+          horizontal: 22,
+          vertical: 80,
+        ), // offset above the pill nav
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -218,17 +282,32 @@ class _ReportScreenState extends State<ReportScreen> {
               backgroundColor: const Color(0xFF006E26),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 18),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
               elevation: 8,
               shadowColor: const Color(0xFF006E26).withOpacity(0.5),
             ),
             onPressed: _submitting ? null : _submit,
-            child: _submitting 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            child: _submitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: const [
-                      Text('Submit Report', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                      Text(
+                        'Submit Report',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       SizedBox(width: 10),
                       Icon(Icons.send_rounded, size: 20),
                     ],
@@ -241,7 +320,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Widget _buildTypeTile(Map<String, dynamic> type, {bool fullWidth = false}) {
     final isSelected = _selectedType == type['value'];
-    
+
     return GestureDetector(
       onTap: () => setState(() => _selectedType = type['value']),
       child: AnimatedContainer(
@@ -252,21 +331,47 @@ class _ReportScreenState extends State<ReportScreen> {
           borderRadius: BorderRadius.circular(14),
         ),
         alignment: Alignment.center,
-        child: fullWidth 
+        child: fullWidth
             ? Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(type['icon'], size: 28, color: isSelected ? Colors.white : const Color(0xFF01411c)),
+                  Icon(
+                    type['icon'],
+                    size: 28,
+                    color: isSelected ? Colors.white : const Color(0xFF01411c),
+                  ),
                   const SizedBox(width: 10),
-                  Text(type['label'], style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isSelected ? Colors.white : const Color(0xFF01411c))),
+                  Text(
+                    type['label'],
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFF01411c),
+                    ),
+                  ),
                 ],
               )
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(type['icon'], size: 28, color: isSelected ? Colors.white : const Color(0xFF01411c)),
+                  Icon(
+                    type['icon'],
+                    size: 28,
+                    color: isSelected ? Colors.white : const Color(0xFF01411c),
+                  ),
                   const SizedBox(height: 10),
-                  Text(type['label'], style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: isSelected ? Colors.white : const Color(0xFF01411c))),
+                  Text(
+                    type['label'],
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFF01411c),
+                    ),
+                  ),
                 ],
               ),
       ),

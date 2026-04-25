@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/city_admin_provider.dart';
 import '../../models/announcement.dart';
 import '../../theme/app_theme.dart';
@@ -209,8 +210,179 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
               ),
             ],
           ),
+          floatingActionButton: context.watch<AuthProvider>().isCityAdmin || context.watch<AuthProvider>().isSuperAdmin
+              ? FloatingActionButton.extended(
+                  onPressed: () => _addAnnouncement(context),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Announcement'),
+                  backgroundColor: const Color(0xFF1B5E20),
+                )
+              : null,
         );
       },
+    );
+  }
+
+  void _addAnnouncement(BuildContext context) {
+    final titleCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    final deptCtrl = TextEditingController(text: 'CDA');
+    final areaCtrl = TextEditingController();
+    String category = 'Public Notice';
+    String priority = 'Medium';
+    bool isPinned = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, ss) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Post City Announcement',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: category,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _cats
+                      .where((c) => c != 'All')
+                      .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                      .toList(),
+                  onChanged: (v) => ss(() => category = v!),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: priority,
+                  decoration: const InputDecoration(
+                    labelText: 'Priority',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: ['Low', 'Medium', 'High', 'Critical']
+                      .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                      .toList(),
+                  onChanged: (v) => ss(() => priority = v!),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: bodyCtrl,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Message Body',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: deptCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Department',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: areaCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Affected Areas (comma separated)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  title: const Text('Pin Announcement'),
+                  value: isPinned,
+                  onChanged: (v) => ss(() => isPinned = v),
+                ),
+                const SizedBox(height: 16),
+                StatefulBuilder(
+                  builder: (ctx, btnSs) {
+                    bool posting = false;
+                    return ElevatedButton(
+                      onPressed: posting
+                          ? null
+                          : () async {
+                              if (titleCtrl.text.isEmpty || bodyCtrl.text.isEmpty) {
+                                return;
+                              }
+                              btnSs(() => posting = true);
+                              try {
+                                await context.read<CityAdminProvider>().addAnnouncement(
+                                  CityAnnouncement(
+                                    id: '',
+                                    title: titleCtrl.text,
+                                    body: bodyCtrl.text,
+                                    category: category,
+                                    priority: priority,
+                                    city: 'Islamabad',
+                                    department: deptCtrl.text,
+                                    affectedAreas: areaCtrl.text
+                                        .split(',')
+                                        .map((e) => e.trim())
+                                        .toList(),
+                                    isPinned: isPinned,
+                                    views: 0,
+                                    createdAt: DateTime.now(),
+                                  ),
+                                );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                              } catch (e) {
+                                btnSs(() => posting = false);
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1B5E20),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: posting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Post Announcement'),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/route_provider.dart';
 import '../theme/app_theme.dart';
 
 /// Pressable animated button with gradient, shadow, and scale feedback
@@ -655,6 +657,125 @@ class RaastPhoneField extends StatelessWidget {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+/// Autocomplete field for location searches
+class RaastAutocomplete extends StatefulWidget {
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final IconData icon;
+  final Function(GeocodeSuggestion)? onSelected;
+
+  const RaastAutocomplete({
+    super.key,
+    required this.controller,
+    required this.label,
+    this.hint = 'Search location...',
+    this.icon = Icons.location_on_rounded,
+    this.onSelected,
+  });
+
+  @override
+  State<RaastAutocomplete> createState() => _RaastAutocompleteState();
+}
+
+class _RaastAutocompleteState extends State<RaastAutocomplete> {
+  final List<GeocodeSuggestion> _suggestions = [];
+  bool _loading = false;
+  bool _showSuggestions = false;
+
+  Future<void> _onChanged(String val) async {
+    if (val.length < 3) {
+      if (_suggestions.isNotEmpty) setState(() => _suggestions.clear());
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final rp = context.read<RouteProvider>();
+      await rp.searchSuggestions(val);
+      if (mounted) {
+        setState(() {
+          _suggestions.clear();
+          _suggestions.addAll(rp.suggestions);
+          _loading = false;
+          _showSuggestions = _suggestions.isNotEmpty;
+        });
+        rp.clearSuggestions();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RaastTextField(
+          controller: widget.controller,
+          labelText: widget.label,
+          hintText: widget.hint,
+          prefixIcon: Icon(widget.icon, color: AppTheme.textGrey, size: 20),
+          suffixIcon: _loading
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              : widget.controller.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        widget.controller.clear();
+                        setState(() {
+                          _suggestions.clear();
+                          _showSuggestions = false;
+                        });
+                      },
+                    )
+                  : null,
+          onChanged: _onChanged,
+        ),
+        if (_showSuggestions && _suggestions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: _suggestions.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final s = _suggestions[i];
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.place_rounded, size: 18, color: AppTheme.textGrey),
+                  title: Text(s.shortName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  subtitle: Text(s.displayName, style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  onTap: () {
+                    widget.controller.text = s.shortName;
+                    setState(() {
+                      _suggestions.clear();
+                      _showSuggestions = false;
+                    });
+                    widget.onSelected?.call(s);
+                  },
+                );
+              },
+            ),
+          ),
       ],
     );
   }

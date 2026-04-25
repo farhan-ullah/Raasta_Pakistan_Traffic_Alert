@@ -103,6 +103,8 @@ class PoliceAlert {
       'alternateRoutes': alternateRoutes,
       'severity': severity.toLowerCase(),
       'reportedBy': 'police',
+      'vipLevel': vipLevel,
+      'status': isActive ? 'active' : 'resolved',
       'lat': lat,
       'lng': lng,
     };

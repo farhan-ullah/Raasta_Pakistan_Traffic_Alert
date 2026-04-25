@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 import 'alerts/alerts_screen.dart';
 import 'map/map_screen.dart';
 import 'announcements/announcements_screen.dart';

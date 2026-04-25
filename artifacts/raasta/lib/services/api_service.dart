@@ -5,14 +5,8 @@ import 'dart:io' show Platform;
 
 class ApiService {
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:3000';
-    }
-    // Handle Android emulator to access host localhost
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:3000';
-    }
-    return 'http://localhost:3000';
+    // Using the deployed production server with /api prefix
+    return 'http://5.189.173.244:8090/api';
   }
 
   // Token for Police/Auth
@@ -31,26 +25,54 @@ class ApiService {
 
   static Future<dynamic> get(String endpoint) async {
     final url = Uri.parse('$baseUrl$endpoint');
-    final response = await http.get(url, headers: _headers);
-    return _handleResponse(response);
+    debugPrint('🚀 API GET: $url');
+    try {
+      final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 10));
+      debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
+      return _handleResponse(response);
+    } catch (e) {
+      debugPrint('❌ API ERROR: $endpoint -> $e');
+      rethrow;
+    }
   }
 
   static Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final url = Uri.parse('$baseUrl$endpoint');
-    final response = await http.post(url, headers: _headers, body: jsonEncode(body));
-    return _handleResponse(response);
+    debugPrint('🚀 API POST: $url | Body: ${jsonEncode(body)}');
+    try {
+      final response = await http.post(url, headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
+      debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
+      return _handleResponse(response);
+    } catch (e) {
+      debugPrint('❌ API ERROR: $endpoint -> $e');
+      rethrow;
+    }
   }
 
   static Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
     final url = Uri.parse('$baseUrl$endpoint');
-    final response = await http.patch(url, headers: _headers, body: jsonEncode(body));
-    return _handleResponse(response);
+    debugPrint('🚀 API PATCH: $url');
+    try {
+      final response = await http.patch(url, headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
+      debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
+      return _handleResponse(response);
+    } catch (e) {
+      debugPrint('❌ API ERROR: $endpoint -> $e');
+      rethrow;
+    }
   }
 
   static Future<dynamic> delete(String endpoint) async {
     final url = Uri.parse('$baseUrl$endpoint');
-    final response = await http.delete(url, headers: _headers);
-    return _handleResponse(response);
+    debugPrint('🚀 API DELETE: $url');
+    try {
+      final response = await http.delete(url, headers: _headers).timeout(const Duration(seconds: 10));
+      debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
+      return _handleResponse(response);
+    } catch (e) {
+      debugPrint('❌ API ERROR: $endpoint -> $e');
+      rethrow;
+    }
   }
 
   static dynamic _handleResponse(http.Response response) {
@@ -71,3 +93,4 @@ class ApiService {
     }
   }
 }
+

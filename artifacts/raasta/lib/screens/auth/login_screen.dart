@@ -71,17 +71,29 @@ class _LoginScreenState extends State<LoginScreen>
       _loading = true;
       _error = null;
     });
-    await Future.delayed(const Duration(milliseconds: 800));
-    final err = await context.read<AuthProvider>().login(
-      _userCtrl.text.trim(),
-      _passCtrl.text,
-      _selectedRole,
-    );
-    if (!mounted) return;
-    setState(() {
-      _loading = false;
-      _error = err;
-    });
+    try {
+      await Future.delayed(const Duration(milliseconds: 800));
+      final err = await context.read<AuthProvider>().login(
+        _userCtrl.text.trim(),
+        _passCtrl.text,
+        _selectedRole,
+      );
+      if (!mounted) return;
+      setState(() {
+        _error = err;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
   }
 
   void _fillDemo(String user, String pass) {
@@ -239,10 +251,6 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
                                 const SizedBox(height: 24),
-                                if (_error != null) ...[
-                                  _ErrorBanner(_error!),
-                                  const SizedBox(height: 16),
-                                ],
                                 _Field(
                                   controller: _userCtrl,
                                   label: 'Username',
@@ -250,12 +258,6 @@ class _LoginScreenState extends State<LoginScreen>
                                   icon: Icons.person_outline_rounded,
                                   validator: (v) =>
                                       v!.isEmpty ? 'Enter your username' : null,
-                                ),
-                                const SizedBox(height: 14),
-                                _RoleDropdown(
-                                  value: _selectedRole,
-                                  onChanged: (v) =>
-                                      setState(() => _selectedRole = v!),
                                 ),
                                 const SizedBox(height: 14),
                                 _Field(
@@ -277,7 +279,18 @@ class _LoginScreenState extends State<LoginScreen>
                                   validator: (v) =>
                                       v!.isEmpty ? 'Enter your password' : null,
                                 ),
-                                const SizedBox(height: 28),
+                                const SizedBox(height: 14),
+                                _RoleDropdown(
+                                  value: _selectedRole,
+                                  onChanged: (v) =>
+                                      setState(() => _selectedRole = v!),
+                                ),
+                                const SizedBox(height: 12),
+                                if (_error != null) ...[
+                                  _ErrorBanner(_error!),
+                                  const SizedBox(height: 16),
+                                ],
+                                const SizedBox(height: 16),
                                 RaastLoadingButton(
                                   label: 'Sign In',
                                   loading: _loading,

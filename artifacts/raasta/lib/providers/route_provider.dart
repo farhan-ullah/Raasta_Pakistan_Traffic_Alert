@@ -131,16 +131,19 @@ class RouteProvider extends ChangeNotifier {
         'viewbox': '72.5,32.0,75.0,34.5',
         'bounded': '0',
       });
+      debugPrint('🚀 GEOCODE REQ: $uri');
       final res = await http.get(uri, headers: {
         'User-Agent': 'Raasta-Traffic-PK/2.0 (user_${DateTime.now().millisecondsSinceEpoch}@raasta.pk)'
       });
+      debugPrint('✅ GEOCODE RES [${res.statusCode}]');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List;
         _suggestions = data.map((d) => GeocodeSuggestion.fromJson(d as Map)).toList();
       } else {
         _suggestions = [];
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ GEOCODE ERROR: $e');
       _suggestions = [];
     }
     notifyListeners();
@@ -192,7 +195,9 @@ class RouteProvider extends ChangeNotifier {
           '${from.longitude},${from.latitude};${to.longitude},${to.latitude}'
           '?geometries=geojson&overview=full&alternatives=true';
 
+      debugPrint('🚀 ROUTING REQ: $url');
       final res = await http.get(Uri.parse(url), headers: {'User-Agent': 'Raasta-Traffic-PK/1.0'}).timeout(const Duration(seconds: 12));
+      debugPrint('✅ ROUTING RES [${res.statusCode}]');
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -244,7 +249,9 @@ class RouteProvider extends ChangeNotifier {
           return;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('❌ ROUTING ERROR: $e');
+    }
 
     // Fallback: straight line with synthetic alternatives
     final from = _from!.coords;
