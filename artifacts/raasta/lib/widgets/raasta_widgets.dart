@@ -243,12 +243,14 @@ class RaastSheet extends StatelessWidget {
   final Widget child;
   final double? height;
   final EdgeInsets padding;
+  final bool scrollable;
 
   const RaastSheet({
     super.key,
     required this.child,
     this.height,
     this.padding = const EdgeInsets.fromLTRB(24, 12, 24, 32),
+    this.scrollable = true,
   });
 
   @override
@@ -263,9 +265,20 @@ class RaastSheet extends StatelessWidget {
         mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
         children: [
           const SizedBox(height: 12),
-          Container(width: 44, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 44,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 8),
-          Flexible(child: SingleChildScrollView(padding: padding, child: child)),
+          Flexible(
+            child: scrollable
+                ? SingleChildScrollView(padding: padding, child: child)
+                : Padding(padding: padding, child: child),
+          ),
         ],
       ),
     );

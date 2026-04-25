@@ -14,13 +14,13 @@ import 'models/user.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   final authProvider = AuthProvider();
   await authProvider.init();
 
   // Fire notification init in background — never block app startup
   NotificationService().initialize();
-  
+
   runApp(RaastaApp(authProvider: authProvider));
 }
 
@@ -65,13 +65,8 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, auth, _) {
-        if (auth.currentUser != null) {
-          return const MainScreen();
-        }
-        return const LoginScreen();
-      },
-    );
+    // Return MainScreen directly to allow unauthenticated map access.
+    // Login will be handled contextually in MainScreen tabs.
+    return const MainScreen();
   }
 }

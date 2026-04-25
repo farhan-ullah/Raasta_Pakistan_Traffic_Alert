@@ -1,5 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import 'auth/login_screen.dart';
 import 'alerts/alerts_screen.dart';
 import 'map/map_screen.dart';
 import 'announcements/announcements_screen.dart';
@@ -15,12 +18,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _index = 3;
 
-  static const _screens = [
-    AlertsScreen(),
-    AnnouncementsScreen(),
-    ReportScreen(),
-    MapScreen(),
-    ProfileScreen(),
+  List<Widget> get _screens => [
+    const AlertsScreen(),
+    const AnnouncementsScreen(),
+    context.watch<AuthProvider>().isAuthenticated ? const ReportScreen() : const LoginScreen(showAsModal: true),
+    const MapScreen(),
+    context.watch<AuthProvider>().isAuthenticated ? const ProfileScreen() : const LoginScreen(showAsModal: true),
   ];
 
   static const _navItems = [

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../models/traffic_alert.dart';
 import '../../providers/alert_provider.dart';
 import '../../providers/police_provider.dart';
@@ -27,11 +28,13 @@ class _MapScreenState extends State<MapScreen>
   final _mapCtrl = MapController();
   bool _showAlerts = true;
   bool _showPolice = true;
+  bool _isNavigating = false;
 
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
 
   final _voice = VoiceService();
+  StreamSubscription<Position>? _positionSub;
 
   static const _islamabad = LatLng(33.6844, 73.0479);
 
@@ -46,11 +49,53 @@ class _MapScreenState extends State<MapScreen>
       begin: 0.6,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initLocation();
+    });
+  }
+
+  Future<void> _initLocation() async {
+    final rp = context.read<RouteProvider>();
+    await rp.updateCurrentLocation();
+
+    _positionSub =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        ).listen((pos) {
+          final loc = LatLng(pos.latitude, pos.longitude);
+          rp.setCurrentLocation(loc);
+          if (_isNavigating) {
+            _mapCtrl.move(loc, _mapCtrl.camera.zoom);
+
+            // Update navigation progress
+            final oldStep = rp.currentStepIndex;
+            rp.updateProgress(loc);
+            if (rp.currentStepIndex != oldStep) {
+              // New step reached!
+              if (rp.currentStep != null) {
+                _voice.speakText(rp.currentStep!.instruction);
+              }
+            }
+
+            // Check for new blockages ahead on route
+            final alerts = context.read<AlertProvider>().alerts;
+            final onRoute = rp.checkAlertsOnAllRoutes(alerts);
+            if (onRoute.isNotEmpty) {
+              // We might want to throttle this voice alert
+              _voice.speak('blockage_ahead');
+            }
+          }
+        });
   }
 
   @override
   void dispose() {
     _pulseCtrl.dispose();
+    _positionSub?.cancel();
     super.dispose();
   }
 
@@ -62,7 +107,11 @@ class _MapScreenState extends State<MapScreen>
       NotificationService().sendAlert(
         id: alert.id,
         title: alert.title,
-        body: '${alert.severity} — ${alert.area}',
+        body: alert.area.isNotEmpty
+            ? 'Located in ${alert.area}'
+            : (alert.description.isNotEmpty
+                  ? alert.description
+                  : 'Alert on your route'),
         severity: alert.severity,
       );
     }
@@ -109,6 +158,7 @@ class _MapScreenState extends State<MapScreen>
       isScrollControlled: true,
       builder: (_) => RaastSheet(
         height: MediaQuery.of(context).size.height * 0.65,
+        scrollable: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -522,6 +572,61 @@ class _MapScreenState extends State<MapScreen>
                 userAgentPackageName: 'com.raasta.traffic',
               ),
 
+              // My Location
+              if (routeProvider.currentLocation != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: routeProvider.currentLocation!,
+                      width: 60,
+                      height: 60,
+                      child: AnimatedBuilder(
+                        animation: _pulseAnim,
+                        builder: (_, __) => Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 44 * _pulseAnim.value,
+                              height: 44 * _pulseAnim.value,
+                              decoration: BoxDecoration(
+                                color: AppTheme.infoBlue.withOpacity(
+                                  0.3 * (1.1 - _pulseAnim.value),
+                                ),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: const BoxDecoration(
+                                    color: AppTheme.infoBlue,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
               // Non-selected alternatives (faded)
               ...routeProvider.alternatives
                   .asMap()
@@ -706,23 +811,72 @@ class _MapScreenState extends State<MapScreen>
             bottom: 130,
             left: 12,
             right: 12,
-            child: routeProvider.routeAlerts.isNotEmpty
-                ? _RouteAlertsBanner(
-                    alerts: routeProvider.routeAlerts,
-                    onViewAlternates: _showAlternateRoutes,
-                  )
-                : _FilterBar(
-                    showAlerts: _showAlerts,
-                    showPolice: _showPolice,
-                    onToggleAlerts: () =>
-                        setState(() => _showAlerts = !_showAlerts),
-                    onTogglePolice: () =>
-                        setState(() => _showPolice = !_showPolice),
-                  ),
+            child: _isNavigating
+                ? const SizedBox.shrink() // Navigation overlay will be shown instead
+                : (routeProvider.routeAlerts.isNotEmpty
+                      ? _RouteAlertsBanner(
+                          alerts: routeProvider.routeAlerts,
+                          onViewAlternates: _showAlternateRoutes,
+                        )
+                      : _FilterBar(
+                          showAlerts: _showAlerts,
+                          showPolice: _showPolice,
+                          onToggleAlerts: () =>
+                              setState(() => _showAlerts = !_showAlerts),
+                          onTogglePolice: () =>
+                              setState(() => _showPolice = !_showPolice),
+                        )),
           ),
 
           // Legend
-          const Positioned(top: 120, right: 14, child: _LegendCard()),
+          if (!_isNavigating)
+            const Positioned(top: 120, right: 14, child: _LegendCard()),
+
+          // Re-center button
+          Positioned(
+            right: 16,
+            bottom: _isNavigating ? 140 : 220,
+            child: FloatingActionButton(
+              onPressed: () {
+                if (routeProvider.currentLocation != null) {
+                  _mapCtrl.move(routeProvider.currentLocation!, 15);
+                } else {
+                  _mapCtrl.move(_islamabad, 12.5);
+                }
+              },
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.infoBlue,
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.my_location_rounded),
+            ),
+          ),
+
+          // Navigation Overlay
+          if (_isNavigating) ...[
+            // Current Step Indicator at Top
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 70,
+              left: 12,
+              right: 12,
+              child: _StepIndicator(routeProvider: routeProvider),
+            ),
+
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _NavigationOverlay(
+                routeProvider: routeProvider,
+                onStop: () {
+                  setState(() => _isNavigating = false);
+                  _voice.stop();
+                },
+              ),
+            ),
+          ],
 
           // ─── Navigation search panel (isolated StatefulWidget) ───
           _NavPanel(
@@ -731,6 +885,7 @@ class _MapScreenState extends State<MapScreen>
             onShowAlternates: _showAlternateRoutes,
             onShowLanguagePicker: _showLanguagePicker,
             onReCenter: () => _mapCtrl.move(_islamabad, 12.5),
+            onNavigationToggle: (v) => setState(() => _isNavigating = v),
             onToggleNotifications: () {
               final rp = context.read<RouteProvider>();
               rp.toggleNotifications();
@@ -762,6 +917,238 @@ class _MapScreenState extends State<MapScreen>
 }
 
 // ═══════════════════════════════════════════════════════════
+//  _NavigationOverlay — simple UI for navigation mode
+// ═══════════════════════════════════════════════════════════
+
+class _NavigationOverlay extends StatelessWidget {
+  final RouteProvider routeProvider;
+  final VoidCallback onStop;
+
+  const _NavigationOverlay({required this.routeProvider, required this.onStop});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 20,
+            offset: Offset(0, -5),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppTheme.successGreen.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.navigation_rounded,
+                  color: AppTheme.successGreen,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      routeProvider.to?.shortName ?? 'Destination',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textDark,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          '${routeProvider.durationMins} min',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.successGreen,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${routeProvider.distanceKm.toStringAsFixed(1)} km',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textGrey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              RaastButton(
+                height: 44,
+                radius: 12,
+                colors: const [Color(0xFFE53935), Color(0xFFC62828)],
+                onPressed: onStop,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: const Text(
+                  'Exit',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (routeProvider.routeAlerts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.criticalRed.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.criticalRed.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_rounded,
+                    color: AppTheme.criticalRed,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${routeProvider.routeAlerts.length} blockages ahead! Tap to re-route.',
+                      style: const TextStyle(
+                        color: AppTheme.criticalRed,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StepIndicator extends StatelessWidget {
+  final RouteProvider routeProvider;
+  const _StepIndicator({required this.routeProvider});
+
+  @override
+  Widget build(BuildContext context) {
+    final step = routeProvider.currentStep;
+    if (step == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF006E26),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _StepIcon(type: step.maneuverType),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  step.instruction,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (step.distance > 0)
+                  Text(
+                    '${step.distance < 1000 ? "${step.distance.round()} m" : "${(step.distance / 1000).toStringAsFixed(1)} km"}',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepIcon extends StatelessWidget {
+  final String type;
+  const _StepIcon({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    IconData icon;
+    switch (type) {
+      case 'turn':
+        icon = Icons.turn_right_rounded;
+        break;
+      case 'merge':
+        icon = Icons.merge_rounded;
+        break;
+      case 'ramp':
+        icon = Icons.ramp_right_rounded;
+        break;
+      case 'fork':
+        icon = Icons.alt_route_rounded;
+        break;
+      case 'roundabout':
+        icon = Icons.roundabout_right_rounded;
+        break;
+      default:
+        icon = Icons.navigation_rounded;
+    }
+
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icon, color: Colors.white, size: 28),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 //  _NavPanel — isolated StatefulWidget, owns all search state
 //  Typing here never triggers MapScreen.setState
 // ═══════════════════════════════════════════════════════════
@@ -773,6 +1160,7 @@ class _NavPanel extends StatefulWidget {
   final VoidCallback onShowLanguagePicker;
   final VoidCallback onReCenter;
   final VoidCallback onToggleNotifications;
+  final ValueChanged<bool> onNavigationToggle;
 
   const _NavPanel({
     required this.voice,
@@ -781,6 +1169,7 @@ class _NavPanel extends StatefulWidget {
     required this.onShowLanguagePicker,
     required this.onReCenter,
     required this.onToggleNotifications,
+    required this.onNavigationToggle,
   });
 
   @override
@@ -808,6 +1197,8 @@ class _NavPanelState extends State<_NavPanel>
   late AnimationController _animCtrl;
   late Animation<double> _anim;
 
+  late RouteProvider _routeProvider;
+
   @override
   void initState() {
     super.initState();
@@ -819,10 +1210,46 @@ class _NavPanelState extends State<_NavPanel>
 
     _fromCtrl.addListener(() => _fromHasText.value = _fromCtrl.text.isNotEmpty);
     _toCtrl.addListener(() => _toHasText.value = _toCtrl.text.isNotEmpty);
+
+    _fromFocus.addListener(() {
+      if (_fromFocus.hasFocus) setState(() => _activeField = 'from');
+    });
+    _toFocus.addListener(() {
+      if (_toFocus.hasFocus) setState(() => _activeField = 'to');
+    });
+
+    // Sync controllers with provider
+    _routeProvider = context.read<RouteProvider>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        if (_routeProvider.from != null)
+          _fromCtrl.text = _routeProvider.from!.shortName;
+        if (_routeProvider.to != null)
+          _toCtrl.text = _routeProvider.to!.shortName;
+
+        _routeProvider.addListener(_syncControllers);
+      }
+    });
+  }
+
+  void _syncControllers() {
+    if (!mounted) return;
+    final rp = context.read<RouteProvider>();
+    if (rp.from != null &&
+        _fromCtrl.text != rp.from!.shortName &&
+        !_fromFocus.hasFocus) {
+      _fromCtrl.text = rp.from!.shortName;
+    }
+    if (rp.to != null &&
+        _toCtrl.text != rp.to!.shortName &&
+        !_toFocus.hasFocus) {
+      _toCtrl.text = rp.to!.shortName;
+    }
   }
 
   @override
   void dispose() {
+    _routeProvider.removeListener(_syncControllers);
     _animCtrl.dispose();
     _fromCtrl.dispose();
     _toCtrl.dispose();
@@ -847,9 +1274,8 @@ class _NavPanelState extends State<_NavPanel>
     FocusScope.of(context).unfocus();
     setState(() => _expanded = false);
     _animCtrl.reverse();
-    context.read<RouteProvider>()
-      ..clearAll()
-      ..clearSuggestions();
+    _routeProvider.clearAll();
+    _routeProvider.clearSuggestions();
     _fromCtrl.clear();
     _toCtrl.clear();
     _fromHasText.value = false;
@@ -862,16 +1288,16 @@ class _NavPanelState extends State<_NavPanel>
     final q = value.trim();
     if (q.length >= 3) {
       _debounce = Timer(const Duration(milliseconds: 500), () {
-        if (mounted) context.read<RouteProvider>().searchSuggestions(q);
+        if (mounted) _routeProvider.searchSuggestions(q);
       });
     } else {
-      if (mounted) context.read<RouteProvider>().clearSuggestions();
+      if (mounted) _routeProvider.clearSuggestions();
     }
   }
 
   void _pickSuggestion(GeocodeSuggestion s) {
     FocusScope.of(context).unfocus();
-    final rp = context.read<RouteProvider>();
+    final rp = _routeProvider;
     if (_activeField == 'from') {
       _fromCtrl.text = s.shortName;
       rp.setFrom(s);
@@ -882,10 +1308,10 @@ class _NavPanelState extends State<_NavPanel>
     rp.clearSuggestions();
 
     // After route computes, notify parent map (OSRM can take 2-4 s)
+    final provider = _routeProvider; // Capture provider
     Future.delayed(const Duration(milliseconds: 4000), () {
       if (!mounted) return;
-      final rp2 = context.read<RouteProvider>();
-      if (rp2.status == RouteStatus.found) widget.onRouteFound(rp2);
+      if (provider.status == RouteStatus.found) widget.onRouteFound(provider);
     });
   }
 
@@ -1254,6 +1680,7 @@ class _NavPanelState extends State<_NavPanel>
                                         FocusScope.of(context).unfocus();
                                         setState(() => _expanded = false);
                                         _animCtrl.reverse();
+                                        widget.onNavigationToggle(true);
                                       },
                                       child: const Text(
                                         'Start navigation',
@@ -1594,32 +2021,35 @@ class _RouteOptionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _Chip(
-                        Icons.route_rounded,
-                        '${alt.distanceKm.toStringAsFixed(1)} km',
-                        AppTheme.infoBlue,
-                      ),
-                      const SizedBox(width: 8),
-                      _Chip(
-                        Icons.access_time_rounded,
-                        '${alt.durationMins} min',
-                        AppTheme.successGreen,
-                      ),
-                      const SizedBox(width: 8),
-                      _Chip(
-                        alt.alertCount == 0
-                            ? Icons.check_circle_rounded
-                            : Icons.warning_rounded,
-                        alt.alertCount == 0
-                            ? 'Clear'
-                            : '${alt.alertCount} alert${alt.alertCount > 1 ? 's' : ''}',
-                        alt.alertCount == 0
-                            ? AppTheme.successGreen
-                            : AppTheme.criticalRed,
-                      ),
-                    ],
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _Chip(
+                          Icons.route_rounded,
+                          '${alt.distanceKm.toStringAsFixed(1)} km',
+                          AppTheme.infoBlue,
+                        ),
+                        const SizedBox(width: 8),
+                        _Chip(
+                          Icons.access_time_rounded,
+                          '${alt.durationMins} min',
+                          AppTheme.successGreen,
+                        ),
+                        const SizedBox(width: 8),
+                        _Chip(
+                          alt.alertCount == 0
+                              ? Icons.check_circle_rounded
+                              : Icons.warning_rounded,
+                          alt.alertCount == 0
+                              ? 'Clear'
+                              : '${alt.alertCount} alert${alt.alertCount > 1 ? 's' : ''}',
+                          alt.alertCount == 0
+                              ? AppTheme.successGreen
+                              : AppTheme.criticalRed,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

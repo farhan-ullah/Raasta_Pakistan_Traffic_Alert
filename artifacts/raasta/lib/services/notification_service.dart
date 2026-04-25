@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 // Conditional import: web impl on web, stub on mobile/desktop.
@@ -189,57 +190,189 @@ class _BannerTileState extends State<_BannerTile> with SingleTickerProviderState
       opacity: _fade,
       child: SlideTransition(
         position: _slide,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border(left: BorderSide(color: color, width: 5)),
-            boxShadow: [
-              BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 6)),
-              BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 2)),
-            ],
-          ),
-          child: Row(children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.15),
+                  blurRadius: 32,
+                  offset: const Offset(0, 14),
                 ),
-                child: Icon(_iconFor(widget.notification.severity), color: color, size: 24),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      // Left color accent bar
+                      Container(
+                        width: 6,
+                        decoration: BoxDecoration(
+                          color: color,
+                          gradient: LinearGradient(
+                            colors: [color, color.withValues(alpha: 0.7)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              // Status indicator icon
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      color.withValues(alpha: 0.18),
+                                      color.withValues(alpha: 0.05)
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    _iconFor(widget.notification.severity),
+                                    color: color,
+                                    size: 26,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 7,
+                                            vertical: 2.5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: color,
+                                            borderRadius: BorderRadius.circular(7),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: color.withValues(alpha: 0.2),
+                                                blurRadius: 6,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Text(
+                                            widget.notification.severity
+                                                .toUpperCase(),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.7,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'ON YOUR ROUTE',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF71717A),
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      widget.notification.title,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF09090B),
+                                        height: 1.2,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      widget.notification.body,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF71717A),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Vertical Divider
+                      Container(
+                        width: 1,
+                        margin: const EdgeInsets.symmetric(vertical: 16),
+                        color: Colors.black.withValues(alpha: 0.05),
+                      ),
+                      // Close button
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            dismiss();
+                            Future.delayed(
+                              const Duration(milliseconds: 400),
+                              widget.onDismiss,
+                            );
+                          },
+                          borderRadius: const BorderRadius.only(
+                            topRight: Radius.circular(24),
+                            bottomRight: Radius.circular(24),
+                          ),
+                          child: const SizedBox(
+                            width: 54,
+                            child: Center(
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: Color(0xFFA1A1AA),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            Expanded(child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
-                    child: Text(
-                      widget.notification.severity.toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Text('ON YOUR ROUTE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF9E9E9E), letterSpacing: 0.5)),
-                ]),
-                const SizedBox(height: 4),
-                Text(widget.notification.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0D0D0D)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(widget.notification.body,  style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ]),
-            )),
-            IconButton(
-              onPressed: () {
-                dismiss();
-                Future.delayed(const Duration(milliseconds: 400), widget.onDismiss);
-              },
-              icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF9E9E9E)),
-            ),
-          ]),
+          ),
         ),
       ),
     );

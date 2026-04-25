@@ -8,7 +8,8 @@ import '../../widgets/raasta_widgets.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool showAsModal;
+  const LoginScreen({super.key, this.showAsModal = false});
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
