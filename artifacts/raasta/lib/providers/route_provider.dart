@@ -433,7 +433,7 @@ class RouteProvider extends ChangeNotifier {
           ),
         );
 
-        if (_recommendedIsAlternative && prim != null) {
+        if (prim != null) {
           final primCoords = _fixRouteStart(
             _trimStraightLinePrefix(
               (prim['geometry']['coordinates'] as List)
@@ -448,9 +448,11 @@ class RouteProvider extends ChangeNotifier {
             requestedStart,
           );
 
+          // Only add as a distinct alternative if it's actually different from the recommended one
+          // Or if we want to always show 'Fastest' vs 'Cleanest'
           alts.add(
             RouteAlternative(
-              index: 1,
+              index: alts.length,
               points: primCoords,
               steps: [],
               distanceKm: (prim['distanceMeters'] as num) / 1000,
@@ -491,8 +493,10 @@ class RouteProvider extends ChangeNotifier {
     const thresholdKm = 0.2;
 
     // 1. Calculate alerts for each alternative
-    final updatedAlts = <RouteAlternative>[];
-    for (var alt in _alternatives) {
+    // 2. Update alternatives WITHOUT re-sorting
+    // Re-sorting changes indices and makes manual selection jump back to index 0 on every GPS update.
+    _alternatives = List.generate(_alternatives.length, (i) {
+      final alt = _alternatives[i];
       final onRoute = <TrafficAlert>[];
       for (final alert in allAlerts) {
         final coords = LatLng(alert.lat, alert.lng);
@@ -503,59 +507,15 @@ class RouteProvider extends ChangeNotifier {
           }
         }
       }
-      updatedAlts.add(
-        RouteAlternative(
-          index: alt.index,
-          points: alt.points,
-          steps: alt.steps,
-          distanceKm: alt.distanceKm,
-          durationMins: alt.durationMins,
-          alertsOnRoute: onRoute,
-          type: alt.type,
-        ),
-      );
-    }
-
-    // 2. Sort alternatives: Safety First
-    // Primary sort: fewest alerts (least blockages)
-    // Secondary sort: shortest duration
-    updatedAlts.sort((a, b) {
-      if (a.alertCount != b.alertCount) {
-        return a.alertCount.compareTo(b.alertCount);
-      }
-      return a.durationMins.compareTo(b.durationMins);
-    });
-
-    // 3. Re-assign types and indices based on the new sorted order
-    _alternatives = List.generate(updatedAlts.length, (i) {
-      final alt = updatedAlts[i];
-
-      // Determine the label based on its new position/properties
-      RouteType type = RouteType.balanced;
-      if (i == 0) {
-        type = alt.alertCount == 0
-            ? RouteType.avoidBlockages
-            : RouteType.fastest;
-      } else {
-        // If it's not the first (best) route, check if it's the absolute fastest
-        bool isAbsoluteFastest = true;
-        for (var other in updatedAlts) {
-          if (other.durationMins < alt.durationMins) {
-            isAbsoluteFastest = false;
-            break;
-          }
-        }
-        if (isAbsoluteFastest) type = RouteType.fastest;
-      }
 
       return RouteAlternative(
-        index: i, // New stable index
+        index: i,
         points: alt.points,
         steps: alt.steps,
         distanceKm: alt.distanceKm,
         durationMins: alt.durationMins,
-        alertsOnRoute: alt.alertsOnRoute,
-        type: type,
+        alertsOnRoute: onRoute,
+        type: alt.type,
       );
     });
 
