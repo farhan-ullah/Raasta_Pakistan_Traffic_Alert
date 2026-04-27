@@ -20,7 +20,7 @@ function isApiDebugEnabled(): boolean {
   const dev = (globalThis as { __DEV__?: boolean }).__DEV__;
   if (dev) return true;
   try {
-    const v = process.env.EXPO_PUBLIC_API_DEBUG;
+    const v = (globalThis as any).process?.env?.EXPO_PUBLIC_API_DEBUG;
     return v === "1" || v === "true";
   } catch {
     return false;

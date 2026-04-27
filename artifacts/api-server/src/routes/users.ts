@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, count } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { incidentsTable } from "@workspace/db/src/schema/incidents";
-import { offersTable } from "@workspace/db/src/schema/offers";
+import { incidentsTable, offersTable } from "@workspace/db";
 import { catchAsync } from "../lib/dbError";
 
 const router: IRouter = Router();

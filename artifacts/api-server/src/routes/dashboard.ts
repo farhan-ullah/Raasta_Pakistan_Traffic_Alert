@@ -7,7 +7,7 @@ import { catchAsync } from "../lib/dbError";
 const router: IRouter = Router();
 
 function incidentInPakistanSafe(i: { lat: number | null; lng: number | null }): boolean {
-  if (!Number.isFinite(i.lat) || !Number.isFinite(i.lng)) return false;
+  if (i.lat === null || i.lng === null || !Number.isFinite(i.lat) || !Number.isFinite(i.lng)) return false;
   return isInPakistan(i.lat, i.lng);
 }
 

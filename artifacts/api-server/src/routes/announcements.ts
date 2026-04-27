@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@workspace/db";
-import { announcementsTable } from "@workspace/db/src/schema/announcements";
+import { announcementsTable } from "@workspace/db";
 import { requirePoliceAuth } from "../middleware/policeAuth";
 import { catchAsync } from "../lib/dbError";
 
