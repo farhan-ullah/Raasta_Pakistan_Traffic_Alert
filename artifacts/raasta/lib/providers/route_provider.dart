@@ -187,11 +187,11 @@ class RouteProvider extends ChangeNotifier {
   /// The coordinate where the route visually starts (first snapped road point).
   /// Use this for camera centering and marker placement instead of raw _from coords.
   LatLng? get routeOrigin {
-    // When from is current location, trust the from coords over the snapped route start
-    if (isNavigatingFromCurrentLocation && _currentLocation != null) {
-      return _currentLocation;
-    }
-    return routePoints.isNotEmpty ? routePoints.first : _from?.coords;
+    // Priority 1: If we have a route, the visual start is ALWAYS the first snapped point on the road
+    if (routePoints.isNotEmpty) return routePoints.first;
+
+    // Fallback: If no route yet, use the selected 'from' location
+    return _from?.coords;
   }
 
   /// True only when the user is navigating from their live GPS position
@@ -351,9 +351,15 @@ class RouteProvider extends ChangeNotifier {
       );
     }
 
-    debugPrint('🗺️ ROUTE FROM: ${_from!.coords.latitude}, ${_from!.coords.longitude} (${_from!.shortName})');
-    debugPrint('🗺️ ROUTE TO:   ${_to!.coords.latitude}, ${_to!.coords.longitude} (${_to!.shortName})');
-    debugPrint('🗺️ CURRENT LOC: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}');
+    debugPrint(
+      '🗺️ ROUTE FROM: ${_from!.coords.latitude}, ${_from!.coords.longitude} (${_from!.shortName})',
+    );
+    debugPrint(
+      '🗺️ ROUTE TO:   ${_to!.coords.latitude}, ${_to!.coords.longitude} (${_to!.shortName})',
+    );
+    debugPrint(
+      '🗺️ CURRENT LOC: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}',
+    );
 
     _status = RouteStatus.loadingRoute;
     _alternatives = [];
@@ -377,19 +383,31 @@ class RouteProvider extends ChangeNotifier {
         final rec = res['recommended'];
         final prim = res['primary'];
 
-        _textSuggestions = (res['textSuggestions'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        _textSuggestions =
+            (res['textSuggestions'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
         _betweenEndpointsAlert = res['betweenEndpointsAlert'];
         _routingBackend = res['routingBackend'];
         _recommendedIsAlternative = res['recommendedIsAlternative'] == true;
 
         final alts = <RouteAlternative>[];
 
-        final requestedStart = LatLng(_from!.coords.latitude, _from!.coords.longitude);
+        final requestedStart = LatLng(
+          _from!.coords.latitude,
+          _from!.coords.longitude,
+        );
 
         final recCoords = _fixRouteStart(
           _trimStraightLinePrefix(
             (rec['geometry']['coordinates'] as List)
-                .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+                .map(
+                  (c) => LatLng(
+                    (c[1] as num).toDouble(),
+                    (c[0] as num).toDouble(),
+                  ),
+                )
                 .toList(),
           ),
           requestedStart,
@@ -401,35 +419,46 @@ class RouteProvider extends ChangeNotifier {
           debugPrint('📍 TOTAL POINTS: ${recCoords.length}');
         }
 
-        alts.add(RouteAlternative(
-          index: 0,
-          points: recCoords,
-          steps: [],
-          distanceKm: (rec['distanceMeters'] as num) / 1000,
-          durationMins: ((rec['durationSeconds'] as num) / 60).round(),
-          alertsOnRoute: [],
-          type: _recommendedIsAlternative ? RouteType.avoidBlockages : RouteType.fastest,
-        ));
+        alts.add(
+          RouteAlternative(
+            index: 0,
+            points: recCoords,
+            steps: [],
+            distanceKm: (rec['distanceMeters'] as num) / 1000,
+            durationMins: ((rec['durationSeconds'] as num) / 60).round(),
+            alertsOnRoute: [],
+            type: _recommendedIsAlternative
+                ? RouteType.avoidBlockages
+                : RouteType.fastest,
+          ),
+        );
 
         if (_recommendedIsAlternative && prim != null) {
           final primCoords = _fixRouteStart(
             _trimStraightLinePrefix(
               (prim['geometry']['coordinates'] as List)
-                  .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+                  .map(
+                    (c) => LatLng(
+                      (c[1] as num).toDouble(),
+                      (c[0] as num).toDouble(),
+                    ),
+                  )
                   .toList(),
             ),
             requestedStart,
           );
 
-          alts.add(RouteAlternative(
-            index: 1,
-            points: primCoords,
-            steps: [],
-            distanceKm: (prim['distanceMeters'] as num) / 1000,
-            durationMins: ((prim['durationSeconds'] as num) / 60).round(),
-            alertsOnRoute: [],
-            type: RouteType.fastest,
-          ));
+          alts.add(
+            RouteAlternative(
+              index: 1,
+              points: primCoords,
+              steps: [],
+              distanceKm: (prim['distanceMeters'] as num) / 1000,
+              durationMins: ((prim['durationSeconds'] as num) / 60).round(),
+              alertsOnRoute: [],
+              type: RouteType.fastest,
+            ),
+          );
         }
 
         _alternatives = alts;
@@ -457,7 +486,7 @@ class RouteProvider extends ChangeNotifier {
   /// Check alerts on ALL alternatives, update them, and return new on-route alerts for the selected route.
   List<TrafficAlert> checkAlertsOnAllRoutes(List<TrafficAlert> allAlerts) {
     if (_alternatives.isEmpty) return [];
-    
+
     // 200m threshold is more accurate for city streets to determine if a blockage is truly on the path.
     const thresholdKm = 0.2;
 
@@ -474,15 +503,17 @@ class RouteProvider extends ChangeNotifier {
           }
         }
       }
-      updatedAlts.add(RouteAlternative(
-        index: alt.index,
-        points: alt.points,
-        steps: alt.steps,
-        distanceKm: alt.distanceKm,
-        durationMins: alt.durationMins,
-        alertsOnRoute: onRoute,
-        type: alt.type,
-      ));
+      updatedAlts.add(
+        RouteAlternative(
+          index: alt.index,
+          points: alt.points,
+          steps: alt.steps,
+          distanceKm: alt.distanceKm,
+          durationMins: alt.durationMins,
+          alertsOnRoute: onRoute,
+          type: alt.type,
+        ),
+      );
     }
 
     // 2. Sort alternatives: Safety First
@@ -498,11 +529,13 @@ class RouteProvider extends ChangeNotifier {
     // 3. Re-assign types and indices based on the new sorted order
     _alternatives = List.generate(updatedAlts.length, (i) {
       final alt = updatedAlts[i];
-      
+
       // Determine the label based on its new position/properties
       RouteType type = RouteType.balanced;
       if (i == 0) {
-        type = alt.alertCount == 0 ? RouteType.avoidBlockages : RouteType.fastest;
+        type = alt.alertCount == 0
+            ? RouteType.avoidBlockages
+            : RouteType.fastest;
       } else {
         // If it's not the first (best) route, check if it's the absolute fastest
         bool isAbsoluteFastest = true;
@@ -529,8 +562,11 @@ class RouteProvider extends ChangeNotifier {
     // 4. Auto-select the safest route (Index 0) on initial search
     if (_needsInitialAlertCheck) {
       _needsInitialAlertCheck = false;
-      _selectedIndex = 0; // Index 0 is now guaranteed to be the safest/best route
-      debugPrint('🛡️ Safety First: Automatically selected and prioritized the cleanest route.');
+      _selectedIndex =
+          0; // Index 0 is now guaranteed to be the safest/best route
+      debugPrint(
+        '🛡️ Safety First: Automatically selected and prioritized the cleanest route.',
+      );
     }
 
     notifyListeners();
@@ -574,15 +610,20 @@ class RouteProvider extends ChangeNotifier {
 
   List<LatLng> _fixRouteStart(List<LatLng> coords, LatLng requestedStart) {
     if (coords.isEmpty) return coords;
+
     final distToFirst = _haversine(requestedStart, coords.first);
-    // If backend snapped more than 200m away, prepend the actual start
-    // so the polyline begins from the correct location
-    if (distToFirst > 0.2) {
-      debugPrint(
-        '⚠️ Route snapped ${(distToFirst * 1000).round()}m from actual start — prepending real origin',
-      );
+
+    // SMARTER FIX: Never prepend a straight line if the snap is more than 30m.
+    // If it's less than 30m, we can prepend to make it look connected to the pin.
+    // If it's more, OSRM snapped to a different road/segment, so prepending
+    // would create a long ugly straight line across buildings.
+    if (distToFirst < 0.03) {
       return [requestedStart, ...coords];
     }
+
+    debugPrint(
+      'ℹ️ Large snap (${(distToFirst * 1000).round()}m). Starting polyline exactly on the road to avoid straight lines.',
+    );
     return coords;
   }
 
@@ -591,7 +632,8 @@ class RouteProvider extends ChangeNotifier {
     final lat1 = _toRad(a.latitude);
     final lat2 = _toRad(b.latitude);
     final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
     return math.atan2(y, x) * 180 / math.pi;
   }

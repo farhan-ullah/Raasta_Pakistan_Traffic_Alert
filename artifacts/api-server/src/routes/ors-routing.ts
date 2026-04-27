@@ -9,8 +9,8 @@ import { normalizeIncidentType, orsAvoidRadiusMeters } from "./incident-zones";
 
 const ORS_BASE = process.env["OPENROUTESERVICE_BASE_URL"]?.replace(/\/+$/, "") ?? "https://api.openrouteservice.org";
 const ORS_TIMEOUT_MS = Number(process.env["OPENROUTESERVICE_TIMEOUT_MS"] ?? 25_000);
-/** ORS snaps each waypoint to the road; default ~350m causes 404 off-network pins. */
-const ORS_SNAP_RADIUS_METERS = Number(process.env["ORS_SNAP_RADIUS_METERS"] ?? 5_000);
+/** ORS snaps each waypoint to the road; default 50m avoids snapping to distant major roads. */
+const ORS_SNAP_RADIUS_METERS = Number(process.env["ORS_SNAP_RADIUS_METERS"] ?? 50);
 const OSRM_BASE_SNAP = process.env["OSRM_BASE_URL"]?.replace(/\/+$/, "") ?? "https://router.project-osrm.org";
 
 function orsApiKey(): string | undefined {
@@ -215,7 +215,7 @@ export async function fetchOrsRouteWithAvoidPolygons(
 
   let lastFailureReason = "unknown";
 
-  const snapR = Number.isFinite(ORS_SNAP_RADIUS_METERS) && ORS_SNAP_RADIUS_METERS >= 350 ? ORS_SNAP_RADIUS_METERS : 5_000;
+  const snapR = Number.isFinite(ORS_SNAP_RADIUS_METERS) && ORS_SNAP_RADIUS_METERS >= 20 ? ORS_SNAP_RADIUS_METERS : 50;
 
   let legA: [number, number] = [fromLng, fromLat];
   let legB: [number, number] = [toLng, toLat];
