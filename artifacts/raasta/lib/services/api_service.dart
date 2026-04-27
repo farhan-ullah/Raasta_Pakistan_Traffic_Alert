@@ -27,7 +27,7 @@ class ApiService {
     final url = Uri.parse('$baseUrl$endpoint');
     debugPrint('🚀 API GET: $url');
     try {
-      final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 10));
+      final response = await http.get(url, headers: _headers).timeout(const Duration(seconds: 30));
       debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
       return _handleResponse(response);
     } catch (e) {
@@ -40,7 +40,7 @@ class ApiService {
     final url = Uri.parse('$baseUrl$endpoint');
     debugPrint('🚀 API POST: $url | Body: ${jsonEncode(body)}');
     try {
-      final response = await http.post(url, headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
+      final response = await http.post(url, headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
       debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
       return _handleResponse(response);
     } catch (e) {
@@ -53,7 +53,7 @@ class ApiService {
     final url = Uri.parse('$baseUrl$endpoint');
     debugPrint('🚀 API PATCH: $url');
     try {
-      final response = await http.patch(url, headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
+      final response = await http.patch(url, headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
       debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
       return _handleResponse(response);
     } catch (e) {
@@ -66,7 +66,7 @@ class ApiService {
     final url = Uri.parse('$baseUrl$endpoint');
     debugPrint('🚀 API DELETE: $url');
     try {
-      final response = await http.delete(url, headers: _headers).timeout(const Duration(seconds: 10));
+      final response = await http.delete(url, headers: _headers).timeout(const Duration(seconds: 30));
       debugPrint('✅ API RESPONSE [${response.statusCode}]: $endpoint');
       return _handleResponse(response);
     } catch (e) {

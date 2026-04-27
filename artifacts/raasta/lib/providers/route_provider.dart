@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/traffic_alert.dart';
+import '../services/api_service.dart';
 
 class GeocodeSuggestion {
   final String displayName;
@@ -164,7 +165,6 @@ class RouteProvider extends ChangeNotifier {
         coords: _currentLocation!,
       );
       notifyListeners();
-      _tryGetRoute();
     }
   }
 
@@ -273,14 +273,12 @@ class RouteProvider extends ChangeNotifier {
     _from = s;
     _suggestions = [];
     notifyListeners();
-    _tryGetRoute();
   }
 
   void setTo(GeocodeSuggestion s) {
     _to = s;
     _suggestions = [];
     notifyListeners();
-    _tryGetRoute();
   }
 
   void clearFrom() {
@@ -315,123 +313,96 @@ class RouteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _tryGetRoute() async {
+  List<String> _textSuggestions = [];
+  List<String> get textSuggestions => _textSuggestions;
+
+  String? _betweenEndpointsAlert;
+  String? get betweenEndpointsAlert => _betweenEndpointsAlert;
+
+  String? _routingBackend;
+  String? get routingBackend => _routingBackend;
+
+  bool _recommendedIsAlternative = false;
+  bool get recommendedIsAlternative => _recommendedIsAlternative;
+
+  Future<void> planSafeRoute() async {
     if (_from == null || _to == null) return;
     _status = RouteStatus.loadingRoute;
     _alternatives = [];
     _selectedIndex = 0;
     _error = null;
+    _textSuggestions = [];
+    _betweenEndpointsAlert = null;
+    _routingBackend = null;
+    _recommendedIsAlternative = false;
     notifyListeners();
 
     try {
-      final from = _from!.coords;
-      final to = _to!.coords;
-      final url =
-          'http://router.project-osrm.org/route/v1/driving/'
-          '${from.longitude},${from.latitude};${to.longitude},${to.latitude}'
-          '?geometries=geojson&overview=full&alternatives=true&steps=true';
+      final res = await ApiService.post('/routes/plan', {
+        'fromLat': _from!.coords.latitude,
+        'fromLng': _from!.coords.longitude,
+        'toLat': _to!.coords.latitude,
+        'toLng': _to!.coords.longitude,
+      });
 
-      debugPrint('🚀 ROUTING REQ: $url');
-      final res = await http
-          .get(Uri.parse(url), headers: {'User-Agent': 'Raasta-Traffic-PK/1.0'})
-          .timeout(const Duration(seconds: 12));
-      debugPrint('✅ ROUTING RES [${res.statusCode}]');
+      if (res != null && res['recommended'] != null) {
+        final rec = res['recommended'];
+        final prim = res['primary'];
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data['code'] == 'Ok' && (data['routes'] as List).isNotEmpty) {
-          final rawRoutes = data['routes'] as List;
-          final parsed = <_RawRoute>[];
-          for (final r in rawRoutes) {
-            final coords = (r['geometry']['coordinates'] as List).map((c) {
-              final lst = c as List;
-              return LatLng(
-                (lst[1] as num).toDouble(),
-                (lst[0] as num).toDouble(),
-              );
-            }).toList();
-            final steps = <RouteStep>[];
-            final legs = r['legs'] as List;
-            for (final leg in legs) {
-              final rawSteps = leg['steps'] as List;
-              for (final s in rawSteps) {
-                final maneuver = s['maneuver'];
-                final location = maneuver['location'] as List;
-                steps.add(
-                  RouteStep(
-                    instruction: (maneuver['instruction'] ?? '').toString(),
-                    distance: (s['distance'] as num).toDouble(),
-                    duration: (s['duration'] as num).toDouble(),
-                    point: LatLng(
-                      (location[1] as num).toDouble(),
-                      (location[0] as num).toDouble(),
-                    ),
-                    maneuverType: (maneuver['type'] ?? 'move').toString(),
-                  ),
-                );
-              }
-            }
+        _textSuggestions = (res['textSuggestions'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        _betweenEndpointsAlert = res['betweenEndpointsAlert'];
+        _routingBackend = res['routingBackend'];
+        _recommendedIsAlternative = res['recommendedIsAlternative'] == true;
 
-            parsed.add(
-              _RawRoute(
-                points: coords,
-                steps: steps,
-                distanceKm: ((r['distance'] as num) / 1000),
-                durationMins: ((r['duration'] as num) / 60).round(),
-              ),
-            );
-          }
+        final alts = <RouteAlternative>[];
 
-          // Sort raw routes: fastest first by duration
-          parsed.sort((a, b) => a.durationMins.compareTo(b.durationMins));
+        final recCoords = (rec['geometry']['coordinates'] as List)
+            .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+            .toList();
 
-          // Assign route types
-          final types = [
-            RouteType.fastest,
-            RouteType.cleanest,
-            RouteType.avoidBlockages,
-            RouteType.balanced,
-          ];
-          _alternatives = List.generate(
-            parsed.length,
-            (i) => RouteAlternative(
-              index: i,
-              points: parsed[i].points,
-              steps: parsed[i].steps,
-              distanceKm: parsed[i].distanceKm,
-              durationMins: parsed[i].durationMins,
-              alertsOnRoute: [], // will be set by checkAlertsOnRoute
-              type: types[i % types.length],
-            ),
-          );
+        alts.add(RouteAlternative(
+          index: 0,
+          points: recCoords,
+          steps: [],
+          distanceKm: (rec['distanceMeters'] as num) / 1000,
+          durationMins: ((rec['durationSeconds'] as num) / 60).round(),
+          alertsOnRoute: [],
+          type: _recommendedIsAlternative ? RouteType.avoidBlockages : RouteType.fastest,
+        ));
 
-          _status = RouteStatus.found;
-          _needsInitialAlertCheck = true;
-          notifyListeners();
-          return;
+        if (_recommendedIsAlternative && prim != null) {
+          final primCoords = (prim['geometry']['coordinates'] as List)
+              .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+              .toList();
+
+          alts.add(RouteAlternative(
+            index: 1,
+            points: primCoords,
+            steps: [],
+            distanceKm: (prim['distanceMeters'] as num) / 1000,
+            durationMins: ((prim['durationSeconds'] as num) / 60).round(),
+            alertsOnRoute: [],
+            type: RouteType.fastest,
+          ));
         }
+
+        _alternatives = alts;
+        _status = RouteStatus.found;
+        _needsInitialAlertCheck = true;
+        notifyListeners();
+        return;
       }
     } catch (e) {
-      debugPrint('❌ ROUTING ERROR: $e');
+      debugPrint('❌ SAFE ROUTING ERROR: $e');
+      _error = 'Could not plan safe route: Network or API error.';
     }
 
-    // Fallback: straight line only if OSRM fails completely
-    final from = _from!.coords;
-    final to = _to!.coords;
-    final baseDist = _haversine(from, to);
-    _alternatives = [
-      RouteAlternative(
-        index: 0,
-        points: [from, to],
-        steps: [],
-        distanceKm: baseDist,
-        durationMins: (baseDist / 30 * 60).round(),
-        alertsOnRoute: [],
-        type: RouteType.fastest,
-      ),
-    ];
-    _status = RouteStatus.found;
-    _needsInitialAlertCheck = true;
+    if (_alternatives.isEmpty) {
+      _status = RouteStatus.error;
+      if (_error == null) {
+        _error = 'Failed to find a route between these locations.';
+      }
+    }
     notifyListeners();
   }
 

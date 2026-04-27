@@ -557,14 +557,42 @@ class _MapScreenState extends State<MapScreen>
           // ─── Map (never rebuilds from search field changes) ───
           FlutterMap(
             mapController: _mapCtrl,
-            options: const MapOptions(
+            options: MapOptions(
               initialCenter: _islamabad,
               initialZoom: 12.5,
               minZoom: 8,
               maxZoom: 18,
-              interactionOptions: InteractionOptions(
+              interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all,
               ),
+              onTap: (tapPosition, point) {
+                FocusScope.of(context).unfocus();
+                if (routeProvider.alternatives.length > 1) {
+                  int bestIndex = -1;
+                  double minDistance = double.infinity;
+                  for (int i = 0; i < routeProvider.alternatives.length; i++) {
+                    final alt = routeProvider.alternatives[i];
+                    for (int j = 0; j < alt.points.length; j += 5) {
+                      final p = alt.points[j];
+                      final dist =
+                          (p.latitude - point.latitude) *
+                              (p.latitude - point.latitude) +
+                          (p.longitude - point.longitude) *
+                              (p.longitude - point.longitude);
+                      if (dist < minDistance) {
+                        minDistance = dist;
+                        bestIndex = i;
+                      }
+                    }
+                  }
+                  // ~700 meters tap tolerance
+                  if (minDistance < 0.00005 &&
+                      bestIndex != -1 &&
+                      bestIndex != routeProvider.selectedIndex) {
+                    routeProvider.selectAlternative(bestIndex);
+                  }
+                }
+              },
             ),
             children: [
               TileLayer(
@@ -627,7 +655,7 @@ class _MapScreenState extends State<MapScreen>
                   ],
                 ),
 
-              // Non-selected alternatives (faded)
+              // Non-selected alternatives (faded/grey)
               ...routeProvider.alternatives
                   .asMap()
                   .entries
@@ -637,8 +665,10 @@ class _MapScreenState extends State<MapScreen>
                       polylines: [
                         Polyline<Object>(
                           points: e.value.points,
-                          color: AppTheme.infoBlue.withOpacity(0.25),
-                          strokeWidth: 3.0,
+                          color: Colors.blueGrey.withOpacity(0.6),
+                          strokeWidth: 5.0,
+                          borderColor: Colors.black26,
+                          borderStrokeWidth: 1.5,
                         ),
                       ],
                     ),
@@ -667,7 +697,7 @@ class _MapScreenState extends State<MapScreen>
                         point: routeProvider.from!.coords,
                         width: 44,
                         height: 44,
-                        child: _PinMarker(
+                        child: const _PinMarker(
                           color: AppTheme.successGreen,
                           label: 'A',
                         ),
@@ -677,7 +707,7 @@ class _MapScreenState extends State<MapScreen>
                         point: routeProvider.to!.coords,
                         width: 44,
                         height: 44,
-                        child: _PinMarker(
+                        child: const _PinMarker(
                           color: AppTheme.primaryRed,
                           label: 'B',
                         ),
@@ -867,7 +897,7 @@ class _MapScreenState extends State<MapScreen>
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: 120,
               child: _NavigationOverlay(
                 routeProvider: routeProvider,
                 onStop: () {
@@ -929,10 +959,10 @@ class _NavigationOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.all(Radius.circular(28)),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
@@ -947,8 +977,8 @@ class _NavigationOverlay extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: AppTheme.successGreen.withOpacity(0.1),
                   shape: BoxShape.circle,
@@ -1093,7 +1123,9 @@ class _StepIndicator extends StatelessWidget {
                 ),
                 if (step.distance > 0)
                   Text(
-                    '${step.distance < 1000 ? "${step.distance.round()} m" : "${(step.distance / 1000).toStringAsFixed(1)} km"}',
+                    step.distance < 1000
+                        ? "${step.distance.round()} m"
+                        : "${(step.distance / 1000).toStringAsFixed(1)} km",
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.8),
                       fontSize: 14,
@@ -1561,6 +1593,84 @@ class _NavPanelState extends State<_NavPanel>
                           ),
                         ),
                       ),
+                      // ── Suggestions — only this Consumer rebuilds on search results ──
+                      Consumer<RouteProvider>(
+                        builder: (_, rp, __) {
+                          if (!_expanded || rp.suggestions.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          final isFrom = _activeField == 'from';
+                          final col = isFrom
+                              ? AppTheme.successGreen
+                              : AppTheme.primaryRed;
+                          return Container(
+                            margin: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+                            constraints: const BoxConstraints(maxHeight: 220),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.12),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: ListView.separated(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                shrinkWrap: true,
+                                itemCount: rp.suggestions.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1, indent: 54),
+                                itemBuilder: (_, i) {
+                                  final s = rp.suggestions[i];
+                                  return ListTile(
+                                    leading: Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: col.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(
+                                        Icons.location_on_rounded,
+                                        size: 18,
+                                        color: col,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      s.shortName,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.textDark,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      s.displayName,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppTheme.textGrey,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    onTap: () => _pickSuggestion(s),
+                                    dense: true,
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                       // Route Summaries and Action Button
                       Consumer<RouteProvider>(
                         builder: (_, rp, __) {
@@ -1603,9 +1713,11 @@ class _NavPanelState extends State<_NavPanel>
                                           mainAxisAlignment:
                                               MainAxisAlignment.spaceBetween,
                                           children: [
-                                            const Text(
-                                              'Optimal Route',
-                                              style: TextStyle(
+                                            Text(
+                                              rp.recommendedIsAlternative
+                                                  ? 'Safer Alternative'
+                                                  : 'Optimal Route',
+                                              style: const TextStyle(
                                                 color: Colors.white70,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w600,
@@ -1692,14 +1804,95 @@ class _NavPanelState extends State<_NavPanel>
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  const Text(
-                                    'Engine: OSRM · Built with Mapbox',
-                                    style: TextStyle(
+                                  if (rp.betweenEndpointsAlert != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Text(
+                                        rp.betweenEndpointsAlert!,
+                                        style: const TextStyle(
+                                          color: Color(0xFFB45309),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  if (rp.textSuggestions.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Text(
+                                        rp.textSuggestions.take(3).join(' · '),
+                                        style: const TextStyle(
+                                          color: AppTheme.textMed,
+                                          fontSize: 11,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                  Text(
+                                    'Engine: ${rp.routingBackend == 'openrouteservice' ? 'OpenRouteService (avoid blockages)' : 'OSRM (best-effort)'}',
+                                    style: const TextStyle(
                                       fontSize: 11,
                                       color: AppTheme.textGrey,
                                       fontWeight: FontWeight.w500,
                                     ),
                                     textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else if (rp.status == RouteStatus.idle ||
+                              rp.status == RouteStatus.error) {
+                            final canPlan = rp.from != null && rp.to != null;
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (rp.error != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: Text(
+                                        rp.error!,
+                                        style: const TextStyle(
+                                          color: AppTheme.criticalRed,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF006E26),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      elevation: 0,
+                                      disabledBackgroundColor: const Color(
+                                        0xFFE0E0E0,
+                                      ),
+                                      disabledForegroundColor: const Color(
+                                        0xFFA0A0A0,
+                                      ),
+                                    ),
+                                    onPressed: canPlan
+                                        ? () {
+                                            FocusScope.of(context).unfocus();
+                                            rp.planSafeRoute();
+                                          }
+                                        : null,
+                                    child: const Text(
+                                      'Plan safe route',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1712,83 +1905,6 @@ class _NavPanelState extends State<_NavPanel>
                   ),
                 ),
               ),
-            ),
-
-            // ── Suggestions — only this Consumer rebuilds on search results ──
-            Consumer<RouteProvider>(
-              builder: (_, rp, __) {
-                if (!_expanded || rp.suggestions.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                final isFrom = _activeField == 'from';
-                final col = isFrom
-                    ? AppTheme.successGreen
-                    : AppTheme.primaryRed;
-                return Container(
-                  margin: const EdgeInsets.fromLTRB(14, 4, 14, 0),
-                  constraints: const BoxConstraints(maxHeight: 220),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.12),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      shrinkWrap: true,
-                      itemCount: rp.suggestions.length,
-                      separatorBuilder: (_, __) =>
-                          const Divider(height: 1, indent: 54),
-                      itemBuilder: (_, i) {
-                        final s = rp.suggestions[i];
-                        return ListTile(
-                          leading: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: col.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.location_on_rounded,
-                              size: 18,
-                              color: col,
-                            ),
-                          ),
-                          title: Text(
-                            s.shortName,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textDark,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            s.displayName,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.textGrey,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () => _pickSuggestion(s),
-                          dense: true,
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
             ),
 
             const SizedBox(height: 10),

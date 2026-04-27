@@ -10,7 +10,10 @@
 analyzer:
   errors:
     avoid_print: ignore
+    curly_braces_in_flow_control_structures: ignore
+    dead_code: ignore
     deprecated_member_use: ignore
+    prefer_conditional_assignment: ignore
     unused_field: ignore
     unused_import: ignore
     unused_local_variable: ignore
