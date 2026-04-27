@@ -908,6 +908,7 @@ class _MapScreenState extends State<MapScreen>
                   setState(() => _isNavigating = false);
                   _voice.stop();
                 },
+                onReroute: () => routeProvider.reroute(),
               ),
             ),
           ],
@@ -958,8 +959,13 @@ class _MapScreenState extends State<MapScreen>
 class _NavigationOverlay extends StatelessWidget {
   final RouteProvider routeProvider;
   final VoidCallback onStop;
+  final VoidCallback onReroute;
 
-  const _NavigationOverlay({required this.routeProvider, required this.onStop});
+  const _NavigationOverlay({
+    required this.routeProvider,
+    required this.onStop,
+    required this.onReroute,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1032,19 +1038,47 @@ class _NavigationOverlay extends StatelessWidget {
                   ],
                 ),
               ),
-              RaastButton(
-                height: 44,
-                radius: 12,
-                colors: const [Color(0xFFE53935), Color(0xFFC62828)],
-                onPressed: onStop,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const Text(
-                  'Exit',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RaastButton(
+                    height: 44,
+                    radius: 12,
+                    colors: const [Color(0xFFE53935), Color(0xFFC62828)],
+                    onPressed: onStop,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: const Text(
+                      'Exit',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  RaastButton(
+                    height: 40,
+                    radius: 12,
+                    colors: const [AppTheme.infoBlue, Color(0xFF1565C0)],
+                    onPressed: onReroute,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                        SizedBox(width: 6),
+                        Text(
+                          'Reroute',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

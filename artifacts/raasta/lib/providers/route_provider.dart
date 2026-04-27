@@ -339,6 +339,21 @@ class RouteProvider extends ChangeNotifier {
   bool _recommendedIsAlternative = false;
   bool get recommendedIsAlternative => _recommendedIsAlternative;
 
+  /// Recalculates the route using the current GPS location as the starting point.
+  /// Useful when the user goes off-track or explicitly clicks a 'Reroute' button.
+  Future<void> reroute() async {
+    if (_currentLocation == null || _to == null) return;
+    
+    // Force start point to current live GPS position
+    _from = GeocodeSuggestion(
+      displayName: 'Current Location',
+      shortName: 'My Location',
+      coords: _currentLocation!,
+    );
+    
+    return planSafeRoute();
+  }
+
   Future<void> planSafeRoute() async {
     if (_from == null || _to == null) return;
 
