@@ -127,11 +127,12 @@ class RouteProvider extends ChangeNotifier {
 
   void setCurrentLocation(LatLng loc) {
     _currentLocation = loc;
-    if (_from == null) {
+    // Always keep _from in sync if user hasn't picked a custom start
+    if (_from == null || _from!.shortName == 'My Location') {
       _from = GeocodeSuggestion(
         displayName: 'Current Location',
         shortName: 'My Location',
-        coords: loc,
+        coords: loc, // update every time GPS updates
       );
     }
     notifyListeners();
@@ -182,6 +183,19 @@ class RouteProvider extends ChangeNotifier {
   double get distanceKm => selectedRoute?.distanceKm ?? 0;
   int get durationMins => selectedRoute?.durationMins ?? 0;
   List<TrafficAlert> get routeAlerts => selectedRoute?.alertsOnRoute ?? [];
+
+  /// The coordinate where the route visually starts (first snapped road point).
+  /// Use this for camera centering and marker placement instead of raw _from coords.
+  LatLng? get routeOrigin {
+    // When from is current location, trust the from coords over the snapped route start
+    if (isNavigatingFromCurrentLocation && _currentLocation != null) {
+      return _currentLocation;
+    }
+    return routePoints.isNotEmpty ? routePoints.first : _from?.coords;
+  }
+
+  /// True only when the user is navigating from their live GPS position
+  bool get isNavigatingFromCurrentLocation => _from?.shortName == 'My Location';
 
   int _currentStepIndex = 0;
   int get currentStepIndex => _currentStepIndex;
@@ -327,6 +341,20 @@ class RouteProvider extends ChangeNotifier {
 
   Future<void> planSafeRoute() async {
     if (_from == null || _to == null) return;
+
+    // If starting from current location, always use the LATEST GPS fix
+    if (_from!.shortName == 'My Location' && _currentLocation != null) {
+      _from = GeocodeSuggestion(
+        displayName: 'Current Location',
+        shortName: 'My Location',
+        coords: _currentLocation!,
+      );
+    }
+
+    debugPrint('🗺️ ROUTE FROM: ${_from!.coords.latitude}, ${_from!.coords.longitude} (${_from!.shortName})');
+    debugPrint('🗺️ ROUTE TO:   ${_to!.coords.latitude}, ${_to!.coords.longitude} (${_to!.shortName})');
+    debugPrint('🗺️ CURRENT LOC: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}');
+
     _status = RouteStatus.loadingRoute;
     _alternatives = [];
     _selectedIndex = 0;
@@ -356,9 +384,22 @@ class RouteProvider extends ChangeNotifier {
 
         final alts = <RouteAlternative>[];
 
-        final recCoords = (rec['geometry']['coordinates'] as List)
-            .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
-            .toList();
+        final requestedStart = LatLng(_from!.coords.latitude, _from!.coords.longitude);
+
+        final recCoords = _fixRouteStart(
+          _trimStraightLinePrefix(
+            (rec['geometry']['coordinates'] as List)
+                .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+                .toList(),
+          ),
+          requestedStart,
+        );
+
+        if (recCoords.isNotEmpty) {
+          debugPrint('📍 ROUTE FIRST POINT: ${recCoords.first}');
+          debugPrint('📍 ROUTE LAST POINT:  ${recCoords.last}');
+          debugPrint('📍 TOTAL POINTS: ${recCoords.length}');
+        }
 
         alts.add(RouteAlternative(
           index: 0,
@@ -371,9 +412,14 @@ class RouteProvider extends ChangeNotifier {
         ));
 
         if (_recommendedIsAlternative && prim != null) {
-          final primCoords = (prim['geometry']['coordinates'] as List)
-              .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
-              .toList();
+          final primCoords = _fixRouteStart(
+            _trimStraightLinePrefix(
+              (prim['geometry']['coordinates'] as List)
+                  .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
+                  .toList(),
+            ),
+            requestedStart,
+          );
 
           alts.add(RouteAlternative(
             index: 1,
@@ -505,6 +551,50 @@ class RouteProvider extends ChangeNotifier {
   }
 
   static double _toRad(double deg) => deg * math.pi / 180;
+
+  List<LatLng> _trimStraightLinePrefix(List<LatLng> points) {
+    if (points.length < 3) return points;
+
+    for (int i = 1; i < points.length - 1; i++) {
+      final segmentLen = _haversine(points[i - 1], points[i]);
+      if (segmentLen < 0.005) continue;
+
+      final bearingA = _bearing(points[i - 1], points[i]);
+      final bearingB = _bearing(points[i], points[i + 1]);
+      final delta = (bearingB - bearingA).abs() % 360;
+      final turn = delta > 180 ? 360 - delta : delta;
+
+      if (segmentLen < 0.05 && turn > 45) {
+        return points.sublist(i);
+      }
+      break;
+    }
+    return points;
+  }
+
+  List<LatLng> _fixRouteStart(List<LatLng> coords, LatLng requestedStart) {
+    if (coords.isEmpty) return coords;
+    final distToFirst = _haversine(requestedStart, coords.first);
+    // If backend snapped more than 200m away, prepend the actual start
+    // so the polyline begins from the correct location
+    if (distToFirst > 0.2) {
+      debugPrint(
+        '⚠️ Route snapped ${(distToFirst * 1000).round()}m from actual start — prepending real origin',
+      );
+      return [requestedStart, ...coords];
+    }
+    return coords;
+  }
+
+  static double _bearing(LatLng a, LatLng b) {
+    final dLon = _toRad(b.longitude - a.longitude);
+    final lat1 = _toRad(a.latitude);
+    final lat2 = _toRad(b.latitude);
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    return math.atan2(y, x) * 180 / math.pi;
+  }
 }
 
 class _RawRoute {

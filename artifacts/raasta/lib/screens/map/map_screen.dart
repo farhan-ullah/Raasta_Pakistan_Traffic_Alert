@@ -601,7 +601,9 @@ class _MapScreenState extends State<MapScreen>
               ),
 
               // My Location
-              if (routeProvider.currentLocation != null)
+              if (routeProvider.currentLocation != null &&
+                  (routeProvider.routePoints.isEmpty ||
+                      routeProvider.isNavigatingFromCurrentLocation))
                 MarkerLayer(
                   markers: [
                     Marker(
@@ -694,7 +696,9 @@ class _MapScreenState extends State<MapScreen>
                   markers: [
                     if (routeProvider.from != null)
                       Marker(
-                        point: routeProvider.from!.coords,
+                        point:
+                            routeProvider.routeOrigin ??
+                            routeProvider.from!.coords,
                         width: 44,
                         height: 44,
                         child: const _PinMarker(
@@ -911,6 +915,7 @@ class _MapScreenState extends State<MapScreen>
           // ─── Navigation search panel (isolated StatefulWidget) ───
           _NavPanel(
             voice: _voice,
+            mapController: _mapCtrl,
             onRouteFound: _onRouteFound,
             onShowAlternates: _showAlternateRoutes,
             onShowLanguagePicker: _showLanguagePicker,
@@ -1187,6 +1192,7 @@ class _StepIcon extends StatelessWidget {
 
 class _NavPanel extends StatefulWidget {
   final VoiceService voice;
+  final MapController mapController;
   final ValueChanged<RouteProvider> onRouteFound;
   final VoidCallback onShowAlternates;
   final VoidCallback onShowLanguagePicker;
@@ -1196,6 +1202,7 @@ class _NavPanel extends StatefulWidget {
 
   const _NavPanel({
     required this.voice,
+    required this.mapController,
     required this.onRouteFound,
     required this.onShowAlternates,
     required this.onShowLanguagePicker,
@@ -1793,6 +1800,19 @@ class _NavPanelState extends State<_NavPanel>
                                         setState(() => _expanded = false);
                                         _animCtrl.reverse();
                                         widget.onNavigationToggle(true);
+
+                                        // Move camera to actual route start, not GPS dot
+                                        if (rp.routeOrigin != null) {
+                                          Future.delayed(
+                                            const Duration(milliseconds: 300),
+                                            () {
+                                              widget.mapController.move(
+                                                rp.routeOrigin!,
+                                                15.5,
+                                              );
+                                            },
+                                          );
+                                        }
                                       },
                                       child: const Text(
                                         'Start navigation',

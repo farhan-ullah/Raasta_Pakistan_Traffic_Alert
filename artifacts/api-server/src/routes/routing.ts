@@ -351,7 +351,7 @@ async function fetchOsrmRoutes(
   toLng: number,
 ): Promise<OsrmRoute[]> {
   const path = `${fromLng},${fromLat};${toLng},${toLat}`;
-  const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson&alternatives=3&radiuses=500;500`;
+  const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson&alternatives=3&radiuses=50;50`;
   let res: Response;
   try {
     res = await fetchOsrmGet(url, OSRM_TIMEOUT_INITIAL_MS);
@@ -372,7 +372,7 @@ async function fetchOsrmRoutes(
 async function fetchOsrmRouteThroughPoints(pointsLngLat: [number, number][]): Promise<OsrmRoute | null> {
   if (pointsLngLat.length < 2) return null;
   const path = pointsLngLat.map(([lng, lat]) => `${lng},${lat}`).join(";");
-  const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson&radiuses=${pointsLngLat.map(() => '500').join(';')}`;
+  const url = `${OSRM_BASE}/route/v1/driving/${path}?overview=full&geometries=geojson&radiuses=${pointsLngLat.map(() => '50').join(';')}`;
   let res: Response;
   try {
     res = await fetchOsrmGet(url, OSRM_TIMEOUT_VIA_MS);
