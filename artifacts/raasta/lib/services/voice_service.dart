@@ -1,18 +1,24 @@
+import 'package:flutter/foundation.dart';
 // Conditional import: web impl on web, stub on mobile/desktop.
 import 'platform/voice_platform_stub.dart'
     if (dart.library.html) 'platform/voice_platform_web.dart';
 
-/// Multilingual voice navigation using the browser's Web Speech API (web only).
-/// On mobile this is a no-op — integrate flutter_tts for native TTS if needed.
+/// Multilingual voice navigation using flutter_tts on mobile and Web Speech API on web.
 class VoiceService {
   static final VoiceService _i = VoiceService._();
   factory VoiceService() => _i;
-  VoiceService._();
+  
+  VoiceService._() {
+    platformSetListeners(_onSpeechStart, _onSpeechEnd);
+  }
 
   String _language = 'ur'; // default: Urdu
   bool _enabled = true;
   bool get enabled => _enabled;
   void setEnabled(bool v) => _enabled = v;
+
+  // Track what's being said for UI overlays
+  final ValueNotifier<String?> currentSpeakingText = ValueNotifier<String?>(null);
 
   // Language display names
   static const Map<String, String> languages = {
@@ -100,6 +106,30 @@ class VoiceService {
       'bal': 'پیش وی آی پی حرکت انت۔ صبر بکن',
       'en':  'VIP movement ahead. Please wait.',
     },
+    'accident': {
+      'ur':  'آگے حادثہ پیش آیا ہے، براہ کرم احتیاط کریں',
+      'pa':  'اگے ایکسیڈنٹ ہویا اے، احتیاط کرو',
+      'ps':  'مخکې پېښه شوې ده، احتیاط وکړه',
+      'sd':  'اڳيان حادثو پيش آيو آهي، مھرباني ڪري احتياط ڪريو',
+      'bal': 'پیش اکسڈنٹ بیتی، احتیاط بکن',
+      'en':  'Accident ahead. Please drive carefully.',
+    },
+    'construction': {
+      'ur':  'آگے سڑک پر کام ہو رہا ہے',
+      'pa':  'اگے سڑک تے کم ہو رہا اے',
+      'ps':  'مخکې په سړک کار روان دی',
+      'sd':  'اڳيان روڊ تي ڪم هلي رهيو آهي',
+      'bal': 'پیش راهه کار بیتی',
+      'en':  'Road construction ahead.',
+    },
+    'congestion': {
+      'ur':  'آگے شدید ٹریفک ہے',
+      'pa':  'اگے بہت ٹریفک اے',
+      'ps':  'مخکې ګڼه ګوڼه ده',
+      'sd':  'اڳيان سخت ٽريفڪ آهي',
+      'bal': 'پیش باز ٹریفک انت',
+      'en':  'Heavy traffic congestion ahead.',
+    },
   };
 
   String get currentLanguage => _language;
@@ -110,6 +140,15 @@ class VoiceService {
   bool _isSpeaking = false;
   bool get isSpeaking => _isSpeaking;
 
+  void _onSpeechStart() {
+    _isSpeaking = true;
+  }
+
+  void _onSpeechEnd() {
+    _isSpeaking = false;
+    currentSpeakingText.value = null;
+  }
+
   void speak(String phraseKey) {
     if (!_enabled) return;
     final phrase = _phrases[phraseKey]?[_language] ?? _phrases[phraseKey]?['en'] ?? phraseKey;
@@ -119,17 +158,31 @@ class VoiceService {
   void speakText(String text) => _speakText(text);
 
   void _speakText(String text) {
+    if (!_enabled) return;
+    
+    // Prevent identical repetition if already speaking
+    if (_isSpeaking && currentSpeakingText.value == text) return;
+
     final tag = _langTags[_language] ?? 'ur-PK';
-    _isSpeaking = true;
-    // Delegates to web impl or no-op stub depending on platform
+    
+    currentSpeakingText.value = text;
+    
+    // Delegates to web impl or mobile impl
     platformSpeak(text, tag);
-    // Note: _isSpeaking reset is best-effort on mobile (no onEnd event from stub)
-    Future.delayed(const Duration(seconds: 5), () => _isSpeaking = false);
+    
+    // Fallback for web where listeners aren't implemented yet
+    if (kIsWeb) {
+      Future.delayed(const Duration(seconds: 4), () {
+        if (currentSpeakingText.value == text) {
+          _onSpeechEnd();
+        }
+      });
+    }
   }
 
   void stop() {
     platformStop();
-    _isSpeaking = false;
+    _onSpeechEnd();
   }
 
   List<String> availableVoiceNames() => platformGetVoices();

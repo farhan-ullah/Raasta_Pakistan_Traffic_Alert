@@ -16,27 +16,26 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
-  int _index = 3;
+  int _index = 0;
 
   List<Widget> get _screens => [
-    const AlertsScreen(),
-    const AnnouncementsScreen(),
-    context.watch<AuthProvider>().isAuthenticated ? const ReportScreen() : const LoginScreen(showAsModal: true),
     const MapScreen(),
-    context.watch<AuthProvider>().isAuthenticated ? const ProfileScreen() : const LoginScreen(showAsModal: true),
+    const AlertsScreen(),
+    context.watch<AuthProvider>().isAuthenticated
+        ? const ReportScreen()
+        : const LoginScreen(showAsModal: true),
+    const AnnouncementsScreen(),
+    context.watch<AuthProvider>().isAuthenticated
+        ? const ProfileScreen()
+        : const LoginScreen(showAsModal: true),
   ];
 
   static const _navItems = [
+    _NavItem(Icons.explore_outlined, Icons.explore_rounded, 'Map', false),
     _NavItem(
       Icons.notifications_none_rounded,
       Icons.notifications_rounded,
       'Alerts',
-      false,
-    ),
-    _NavItem(
-      Icons.bar_chart_rounded,
-      Icons.bar_chart_rounded,
-      'Updates',
       false,
     ),
     _NavItem(
@@ -45,7 +44,12 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       'Report',
       true,
     ),
-    _NavItem(Icons.explore_outlined, Icons.explore_rounded, 'Map', false),
+    _NavItem(
+      Icons.bar_chart_rounded,
+      Icons.bar_chart_rounded,
+      'Updates',
+      false,
+    ),
     _NavItem(
       Icons.person_outline_rounded,
       Icons.person_rounded,

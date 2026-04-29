@@ -212,16 +212,53 @@ class RouteProvider extends ChangeNotifier {
       : null;
 
   void updateProgress(LatLng loc) {
-    if (selectedRoute == null || selectedRoute!.steps.isEmpty) return;
+    if (selectedRoute == null || selectedRoute!.points.isEmpty) return;
 
-    // Simple logic: if we are close to the NEXT step, increment index
-    if (_currentStepIndex + 1 < selectedRoute!.steps.length) {
+    // 1. Step detection (Voice/Instruction updates)
+    if (selectedRoute!.steps.isNotEmpty &&
+        _currentStepIndex + 1 < selectedRoute!.steps.length) {
       final next = selectedRoute!.steps[_currentStepIndex + 1];
-      if (_haversine(loc, next.point) < 0.05) {
-        // 50 meters
+      if (_haversine(loc, next.point) < 0.04) {
+        // 40 meters
         _currentStepIndex++;
-        notifyListeners();
       }
+    }
+
+    // 2. Route trimming (Visual polyline updates)
+    final pts = selectedRoute!.points;
+    if (pts.length < 2) return;
+
+    // Find the nearest point in the next few segments to avoid snapping to distant parts of the route
+    int bestIdx = -1;
+    double minD = 0.15; // 150m snap threshold for city driving
+
+    // We only check the first 10 points to ensure we are trimming from the start
+    // and not jumping to a future part of the route (e.g. if routes cross)
+    final checkCount = math.min(pts.length, 12);
+    for (int i = 0; i < checkCount; i++) {
+      final d = _haversine(loc, pts[i]);
+      if (d < minD) {
+        minD = d;
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx != -1) {
+      // If we found a close point, trim everything before it and prepend current location
+      // This makes the blue line start exactly at the GPS 'puck'
+      final newPoints = [loc, ...pts.sublist(math.max(1, bestIdx))];
+
+      // Update the alternative in-place (order is stable now)
+      _alternatives[_selectedIndex] = RouteAlternative(
+        index: selectedRoute!.index,
+        points: newPoints,
+        steps: selectedRoute!.steps,
+        distanceKm: selectedRoute!.distanceKm,
+        durationMins: selectedRoute!.durationMins,
+        alertsOnRoute: selectedRoute!.alertsOnRoute,
+        type: selectedRoute!.type,
+      );
+      notifyListeners();
     }
   }
 

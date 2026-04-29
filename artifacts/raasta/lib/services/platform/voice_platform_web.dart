@@ -33,3 +33,8 @@ List<String> platformGetVoices() {
     return [];
   }
 }
+
+void platformSetListeners(Function() onStart, Function() onEnd) {
+  // Web implementation for listeners can be added here if needed.
+  // For now, we'll rely on the existing behavior.
+}

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -84,13 +85,33 @@ class _MapScreenState extends State<MapScreen>
             // Check for new blockages ahead on route
             final alerts = context.read<AlertProvider>().alerts;
             final onRoute = rp.checkAlertsOnAllRoutes(alerts);
-            if (onRoute.isNotEmpty) {
-              // We might want to throttle this voice alert
-              _voice.speak('blockage_ahead');
+            
+            final now = DateTime.now();
+            final shouldAlert = _lastBlockageAlertTime == null || 
+                now.difference(_lastBlockageAlertTime!).inMinutes >= 2;
+
+            if (onRoute.isNotEmpty && shouldAlert && !_voice.isSpeaking) {
+              _lastBlockageAlertTime = now;
+              final alert = onRoute.first;
+              final type = alert.type.toLowerCase();
+              
+              if (type.contains('vip')) {
+                _voice.speak('vip_movement');
+              } else if (type.contains('accident')) {
+                _voice.speak('accident');
+              } else if (type.contains('construction')) {
+                _voice.speak('construction');
+              } else if (type.contains('congestion') || type.contains('jam')) {
+                _voice.speak('congestion');
+              } else {
+                _voice.speak('blockage_ahead');
+              }
             }
           }
         });
   }
+
+  DateTime? _lastBlockageAlertTime;
 
   @override
   void dispose() {
@@ -946,6 +967,20 @@ class _MapScreenState extends State<MapScreen>
               );
             },
           ),
+
+          // ─── Voice Alert Overlay (Premium Glassmorphism) ───
+          ValueListenableBuilder<String?>(
+            valueListenable: _voice.currentSpeakingText,
+            builder: (context, text, child) {
+              if (text == null) return const SizedBox.shrink();
+              return Positioned(
+                top: MediaQuery.of(context).padding.top + 80,
+                left: 16,
+                right: 16,
+                child: _VoiceAlertOverlay(text: text),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1608,6 +1643,12 @@ class _NavPanelState extends State<_NavPanel>
                                           ..clearSuggestions();
                                         _fromFocus.requestFocus();
                                       },
+                                      onMyLocation: () {
+                                        final rp = context.read<RouteProvider>();
+                                        rp.useCurrentLocationAsStart();
+                                        _fromCtrl.text = rp.from?.shortName ?? 'My Location';
+                                        _fromFocus.unfocus();
+                                      },
                                     ),
                                     _NavFieldBox(
                                       controller: _toCtrl,
@@ -1977,6 +2018,7 @@ class _NavFieldBox extends StatelessWidget {
   final String label, hint;
   final bool isActive;
   final VoidCallback onTap, onClear;
+  final VoidCallback? onMyLocation; // NEW
   final ValueChanged<String> onChanged;
 
   const _NavFieldBox({
@@ -1989,6 +2031,7 @@ class _NavFieldBox extends StatelessWidget {
     required this.onTap,
     required this.onClear,
     required this.onChanged,
+    this.onMyLocation, // NEW
   });
 
   @override
@@ -2044,26 +2087,39 @@ class _NavFieldBox extends StatelessWidget {
               ],
             ),
           ),
-          // Clear button — only rebuilds this tiny part via ValueListenableBuilder
+          // Action button — only rebuilds this tiny part via ValueListenableBuilder
           ValueListenableBuilder<bool>(
             valueListenable: hasTextNotifier,
-            builder: (_, has, __) => has
-                ? GestureDetector(
-                    onTap: onClear,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.06),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close_rounded,
-                        size: 14,
-                        color: AppTheme.textDark,
-                      ),
+            builder: (_, has, __) {
+              if (has) {
+                return GestureDetector(
+                  onTap: onClear,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.06),
+                      shape: BoxShape.circle,
                     ),
-                  )
-                : const SizedBox.shrink(),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                );
+              }
+              if (onMyLocation != null) {
+                return GestureDetector(
+                  onTap: onMyLocation,
+                  child: const Icon(
+                    Icons.my_location_rounded,
+                    size: 18,
+                    color: AppTheme.infoBlue,
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
         ],
       ),
@@ -2624,4 +2680,109 @@ class _DashedLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _VoiceAlertOverlay extends StatelessWidget {
+  final String text;
+  const _VoiceAlertOverlay({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)),
+          child: Opacity(
+            opacity: value.clamp(0.0, 1.0),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.5),
+                  width: 1.5,
+                ),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.9),
+                    Colors.white.withOpacity(0.7),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppTheme.infoBlue.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.campaign_rounded,
+                      color: AppTheme.infoBlue,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'VOICE ALERT',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: AppTheme.infoBlue,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          text,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textDark,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
