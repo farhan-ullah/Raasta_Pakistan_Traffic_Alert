@@ -1,7 +1,7 @@
 name: raasta
 description: Raasta - Pakistan Traffic Alert App for Islamabad & Rawalpindi
 publish_to: "none"
-version: 1.0.0+2
+version: 1.0.0+6
 
 environment:
   sdk: ^3.8.0

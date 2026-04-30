@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Raasta Pakistan</string>
+	<string>Raasta</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -45,12 +45,5 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-
-	<!-- Location permissions (required for live traffic map) -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Raasta needs your location to show nearby traffic alerts and provide accurate navigation.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Raasta uses your location in the background to give you real-time traffic alerts near you.</string>
-
 </dict>
 </plist>
