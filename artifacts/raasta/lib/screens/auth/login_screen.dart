@@ -140,199 +140,217 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           // Main content
           SafeArea(
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: SlideTransition(
-                position: _slideAnim,
-                child: Column(
-                  children: [
-                    // Logo area
-                    SizedBox(
-                      height: size.height * 0.24,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedBuilder(
-                            animation: _iconFloat,
-                            builder: (_, child) => Transform.translate(
-                              offset: Offset(0, _iconFloat.value),
-                              child: child,
-                            ),
-                            child: Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.5),
-                                  width: 2,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: SlideTransition(
+                    position: _slideAnim,
+                    child: Column(
+                      children: [
+                        // Logo area
+                        Container(
+                          constraints: BoxConstraints(
+                            minHeight: 180,
+                            maxHeight: size.height * 0.3,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AnimatedBuilder(
+                                animation: _iconFloat,
+                                builder: (_, child) => Transform.translate(
+                                  offset: Offset(0, _iconFloat.value),
+                                  child: child,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
-                                    blurRadius: 30,
-                                    spreadRadius: 5,
+                                child: Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.15),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.5),
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 30,
+                                        spreadRadius: 5,
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              child: ClipOval(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(4.0),
-                                  child: Image.asset(
-                                    'assets/images/icon.png',
-                                    fit: BoxFit.cover,
+                                  child: ClipOval(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4.0),
+                                      child: Image.asset(
+                                        'assets/images/icon.png',
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Raasta',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 3,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'راستہ  ·  Pakistan Traffic',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                letterSpacing: 1,
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Raasta',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 3,
+                                ),
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Form card
-                    Expanded(
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF8F9FA),
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(32),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Text(
+                                  'راستہ  ·  Pakistan Traffic',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const Text(
-                                  'Welcome Back 👋',
-                                  style: TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppTheme.textDark,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Sign in to stay on the right road',
-                                  style: TextStyle(
-                                    color: AppTheme.textGrey,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                _Field(
-                                  controller: _userCtrl,
-                                  label: 'Username',
-                                  hint: 'Enter your username',
-                                  icon: Icons.person_outline_rounded,
-                                  validator: (v) =>
-                                      v!.isEmpty ? 'Enter your username' : null,
-                                ),
-                                const SizedBox(height: 14),
-                                _Field(
-                                  controller: _passCtrl,
-                                  label: 'Password',
-                                  hint: 'Enter your password',
-                                  icon: Icons.lock_outline_rounded,
-                                  obscure: _obscure,
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscure
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: AppTheme.textGrey,
+                        // Form card
+                        Expanded(
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF8F9FA),
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(32),
+                              ),
+                            ),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                24,
+                                28,
+                                24,
+                                24,
+                              ),
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Text(
+                                      'Welcome Back 👋',
+                                      style: TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w900,
+                                        color: AppTheme.textDark,
+                                      ),
                                     ),
-                                    onPressed: () =>
-                                        setState(() => _obscure = !_obscure),
-                                  ),
-                                  validator: (v) =>
-                                      v!.isEmpty ? 'Enter your password' : null,
-                                ),
-                                const SizedBox(height: 14),
-                                _RoleDropdown(
-                                  value: _selectedRole,
-                                  onChanged: (v) =>
-                                      setState(() => _selectedRole = v!),
-                                ),
-                                const SizedBox(height: 12),
-                                if (_error != null) ...[
-                                  _ErrorBanner(_error!),
-                                  const SizedBox(height: 16),
-                                ],
-                                const SizedBox(height: 16),
-                                RaastLoadingButton(
-                                  label: 'Sign In',
-                                  loading: _loading,
-                                  onPressed: _login,
-                                ),
-                                const SizedBox(height: 16),
-                                RaastButton(
-                                  height: 54,
-                                  outlined: true,
-                                  colors: [
-                                    AppTheme.primaryRed,
-                                    AppTheme.primaryRed,
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Sign in to stay on the right road',
+                                      style: TextStyle(
+                                        color: AppTheme.textGrey,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    _Field(
+                                      controller: _userCtrl,
+                                      label: 'Username',
+                                      hint: 'Enter your username',
+                                      icon: Icons.person_outline_rounded,
+                                      validator: (v) => v!.isEmpty
+                                          ? 'Enter your username'
+                                          : null,
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _Field(
+                                      controller: _passCtrl,
+                                      label: 'Password',
+                                      hint: 'Enter your password',
+                                      icon: Icons.lock_outline_rounded,
+                                      obscure: _obscure,
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscure
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          color: AppTheme.textGrey,
+                                        ),
+                                        onPressed: () => setState(
+                                          () => _obscure = !_obscure,
+                                        ),
+                                      ),
+                                      validator: (v) => v!.isEmpty
+                                          ? 'Enter your password'
+                                          : null,
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _RoleDropdown(
+                                      value: _selectedRole,
+                                      onChanged: (v) =>
+                                          setState(() => _selectedRole = v!),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (_error != null) ...[
+                                      _ErrorBanner(_error!),
+                                      const SizedBox(height: 16),
+                                    ],
+                                    const SizedBox(height: 16),
+                                    RaastLoadingButton(
+                                      label: 'Sign In',
+                                      loading: _loading,
+                                      onPressed: _login,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    RaastButton(
+                                      height: 54,
+                                      outlined: true,
+                                      colors: [
+                                        AppTheme.primaryRed,
+                                        AppTheme.primaryRed,
+                                      ],
+                                      onPressed: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const RegisterScreen(),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Create New Account',
+                                        style: TextStyle(
+                                          color: AppTheme.primaryRed,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ),
+                                    if (kDebugMode) ...[
+                                      const SizedBox(height: 28),
+                                      _DividerLabel('Quick Demo Login'),
+                                      const SizedBox(height: 14),
+                                      _demoGrid(),
+                                    ],
                                   ],
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const RegisterScreen(),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Create New Account',
-                                    style: TextStyle(
-                                      color: AppTheme.primaryRed,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                    ),
-                                  ),
                                 ),
-                                if (kDebugMode) ...[
-                                  const SizedBox(height: 28),
-                                  _DividerLabel('Quick Demo Login'),
-                                  const SizedBox(height: 14),
-                                  _demoGrid(),
-                                ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

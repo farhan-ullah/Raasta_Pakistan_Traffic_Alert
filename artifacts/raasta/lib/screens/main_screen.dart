@@ -75,10 +75,15 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             bottom: MediaQuery.of(context).padding.bottom > 0
                 ? MediaQuery.of(context).padding.bottom
                 : 12,
-            child: _RaastNavBar(
-              selected: _index,
-              items: _navItems,
-              onTap: _onTap,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: _RaastNavBar(
+                  selected: _index,
+                  items: _navItems,
+                  onTap: _onTap,
+                ),
+              ),
             ),
           ),
         ],

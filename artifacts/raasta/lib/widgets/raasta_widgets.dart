@@ -255,31 +255,36 @@ class RaastSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 44,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: Container(
+          height: height,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: scrollable
-                ? SingleChildScrollView(padding: padding, child: child)
-                : Padding(padding: padding, child: child),
+          child: Column(
+            mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: scrollable
+                    ? SingleChildScrollView(padding: padding, child: child)
+                    : Padding(padding: padding, child: child),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

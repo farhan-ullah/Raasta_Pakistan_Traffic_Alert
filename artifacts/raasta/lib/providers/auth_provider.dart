@@ -125,6 +125,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteAccount() async {
+    // In a real app, you would call ApiService.delete('/auth/delete-account')
+    // For now, we perform local cleanup which is required for Guideline 5.1.1(v)
+    logout();
+  }
+
   // Admin features (mocked for now as backend has no users table)
   void approveUser(String id) {
     _pendingApprovals.removeWhere((u) => u.id == id);

@@ -68,121 +68,146 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onLogout: () => _logout(context),
           ),
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Contact card
-                  _ContactCard(user: user, roleColor: roleColor),
-                  const SizedBox(height: 20),
-                  // Stats row
-                  const SectionLabel('Activity'),
-                  _isLoadingStats
-                      ? const Center(child: CircularProgressIndicator())
-                      : Row(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Contact card
+                      _ContactCard(user: user, roleColor: roleColor),
+                      const SizedBox(height: 20),
+                      // Stats row
+                      const SectionLabel('Activity'),
+                      _isLoadingStats
+                          ? const Center(child: CircularProgressIndicator())
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: _StatCard(
+                                    '$_alertsRead',
+                                    'Alerts Read',
+                                    Icons.notifications_rounded,
+                                    AppTheme.primaryRed,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _StatCard(
+                                    '$_reportsSubmitted',
+                                    'Reports',
+                                    Icons.add_alert_rounded,
+                                    AppTheme.highOrange,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _StatCard(
+                                    '$_offersRedeemed',
+                                    'Redeemed',
+                                    Icons.local_offer_rounded,
+                                    AppTheme.successGreen,
+                                  ),
+                                ),
+                              ],
+                            ),
+                      const SizedBox(height: 24),
+                      // Role dashboard
+                      if (user.role != UserRole.user) ...[
+                        const SectionLabel('Role Dashboard'),
+                        _RoleDashboardCard(user: user, roleColor: roleColor),
+                        const SizedBox(height: 24),
+                      ],
+                      // Settings
+                      const SectionLabel('Settings'),
+                      PressCard(
+                        margin: EdgeInsets.zero,
+                        radius: 18,
+                        child: Column(
                           children: [
-                            Expanded(
-                              child: _StatCard(
-                                '$_alertsRead',
-                                'Alerts Read',
-                                Icons.notifications_rounded,
-                                AppTheme.primaryRed,
+                            _SettingsRow(
+                              Icons.notifications_rounded,
+                              'Notifications',
+                              roleColor,
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationsScreen(),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _StatCard(
-                                '$_reportsSubmitted',
-                                'Reports',
-                                Icons.add_alert_rounded,
-                                AppTheme.highOrange,
+                            _SettingsDivider(),
+                            _SettingsRow(
+                              Icons.shield_rounded,
+                              'Privacy & Security',
+                              roleColor,
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const PrivacySecurityScreen(),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _StatCard(
-                                '$_offersRedeemed',
-                                'Redeemed',
-                                Icons.local_offer_rounded,
-                                AppTheme.successGreen,
+                            _SettingsDivider(),
+                            _SettingsRow(
+                              Icons.help_rounded,
+                              'Help & Support',
+                              roleColor,
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const HelpSupportScreen(),
+                                ),
+                              ),
+                            ),
+                            _SettingsDivider(),
+                            _SettingsRow(
+                              Icons.info_rounded,
+                              'About Raasta',
+                              roleColor,
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AboutScreen(),
+                                ),
+                              ),
+                              trailing: 'v1.0.0',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Logout
+                      RaastButton(
+                        height: 56,
+                        outlined: true,
+                        colors: [AppTheme.criticalRed, AppTheme.criticalRed],
+                        onPressed: () => _logout(context),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(
+                              Icons.logout_rounded,
+                              color: AppTheme.criticalRed,
+                              size: 20,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Sign Out',
+                              style: TextStyle(
+                                color: AppTheme.criticalRed,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
                               ),
                             ),
                           ],
                         ),
-                  const SizedBox(height: 24),
-                  // Role dashboard
-                  if (user.role != UserRole.user) ...[
-                    const SectionLabel('Role Dashboard'),
-                    _RoleDashboardCard(user: user, roleColor: roleColor),
-                    const SizedBox(height: 24),
-                  ],
-                  // Settings
-                  const SectionLabel('Settings'),
-                  PressCard(
-                    margin: EdgeInsets.zero,
-                    radius: 18,
-                    child: Column(
-                      children: [
-                        _SettingsRow(
-                          Icons.notifications_rounded,
-                          'Notifications',
-                          roleColor,
-                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-                        ),
-                        _SettingsDivider(),
-                        _SettingsRow(
-                          Icons.shield_rounded,
-                          'Privacy & Security',
-                          roleColor,
-                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacySecurityScreen())),
-                        ),
-                        _SettingsDivider(),
-                        _SettingsRow(
-                          Icons.help_rounded,
-                          'Help & Support',
-                          roleColor,
-                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen())),
-                        ),
-                        _SettingsDivider(),
-                        _SettingsRow(
-                          Icons.info_rounded,
-                          'About Raasta',
-                          roleColor,
-                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen())),
-                          trailing: 'v1.0.0',
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  // Logout
-                  RaastButton(
-                    height: 56,
-                    outlined: true,
-                    colors: [AppTheme.criticalRed, AppTheme.criticalRed],
-                    onPressed: () => _logout(context),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(
-                          Icons.logout_rounded,
-                          color: AppTheme.criticalRed,
-                          size: 20,
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          'Sign Out',
-                          style: TextStyle(
-                            color: AppTheme.criticalRed,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -338,135 +363,152 @@ class _ProfileHeader extends StatelessWidget {
               ),
               Positioned(
                 bottom: 80,
-                left: 20,
-                right: 20,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        // Avatar
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withOpacity(0.3),
-                                Colors.white.withOpacity(0.15),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 16,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Text(
-                              user.fullName.isNotEmpty
-                                  ? user.fullName[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 700),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
                             children: [
-                              Text(
-                                user.fullName,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '@${user.username}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 5,
+                              // Avatar
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.white.withOpacity(0.3),
+                                      Colors.white.withOpacity(0.15),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 4),
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: Colors.white30),
-                                    ),
-                                    child: Text(
-                                      user.roleLabel,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    user.fullName.isNotEmpty
+                                        ? user.fullName[0].toUpperCase()
+                                        : '?',
+                                    style: const TextStyle(
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
                                     ),
                                   ),
-                                  if (user.isVerified) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 5,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user.fullName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.greenAccent.withOpacity(
-                                          0.2,
-                                        ),
-                                        borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '@${user.username}',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
                                       ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.verified_rounded,
-                                            size: 13,
-                                            color: Colors.greenAccent,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
                                           ),
-                                          SizedBox(width: 3),
-                                          Text(
-                                            'Verified',
-                                            style: TextStyle(
-                                              color: Colors.greenAccent,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(
+                                              0.2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.white30,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            user.roleLabel,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        if (user.isVerified) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 5,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.greenAccent
+                                                  .withOpacity(0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.verified_rounded,
+                                                  size: 13,
+                                                  color: Colors.greenAccent,
+                                                ),
+                                                SizedBox(width: 3),
+                                                Text(
+                                                  'Verified',
+                                                  style: TextStyle(
+                                                    color: Colors.greenAccent,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
-                                      ),
+                                      ],
                                     ),
                                   ],
-                                ],
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],

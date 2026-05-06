@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Raasta needs access to your location to provide real-time traffic alerts and navigation instructions based on your current position.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Raasta needs background location access to alert you of nearby traffic incidents even when the app is in the background.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Raasta requires location access to monitor traffic conditions and provide alerts during your commute.</string>
 </dict>
 </plist>

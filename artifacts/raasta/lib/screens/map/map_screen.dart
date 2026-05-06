@@ -85,16 +85,17 @@ class _MapScreenState extends State<MapScreen>
             // Check for new blockages ahead on route
             final alerts = context.read<AlertProvider>().alerts;
             final onRoute = rp.checkAlertsOnAllRoutes(alerts);
-            
+
             final now = DateTime.now();
-            final shouldAlert = _lastBlockageAlertTime == null || 
+            final shouldAlert =
+                _lastBlockageAlertTime == null ||
                 now.difference(_lastBlockageAlertTime!).inMinutes >= 2;
 
             if (onRoute.isNotEmpty && shouldAlert && !_voice.isSpeaking) {
               _lastBlockageAlertTime = now;
               final alert = onRoute.first;
               final type = alert.type.toLowerCase();
-              
+
               if (type.contains('vip')) {
                 _voice.speak('vip_movement');
               } else if (type.contains('accident')) {
@@ -864,23 +865,31 @@ class _MapScreenState extends State<MapScreen>
           // ─── Bottom: route alerts banner or filter bar ───
           Positioned(
             bottom: 130,
-            left: 12,
-            right: 12,
-            child: _isNavigating
-                ? const SizedBox.shrink() // Navigation overlay will be shown instead
-                : (routeProvider.routeAlerts.isNotEmpty
-                      ? _RouteAlertsBanner(
-                          alerts: routeProvider.routeAlerts,
-                          onViewAlternates: _showAlternateRoutes,
-                        )
-                      : _FilterBar(
-                          showAlerts: _showAlerts,
-                          showPolice: _showPolice,
-                          onToggleAlerts: () =>
-                              setState(() => _showAlerts = !_showAlerts),
-                          onTogglePolice: () =>
-                              setState(() => _showPolice = !_showPolice),
-                        )),
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _isNavigating
+                      ? const SizedBox.shrink()
+                      : (routeProvider.routeAlerts.isNotEmpty
+                            ? _RouteAlertsBanner(
+                                alerts: routeProvider.routeAlerts,
+                                onViewAlternates: _showAlternateRoutes,
+                              )
+                            : _FilterBar(
+                                showAlerts: _showAlerts,
+                                showPolice: _showPolice,
+                                onToggleAlerts: () =>
+                                    setState(() => _showAlerts = !_showAlerts),
+                                onTogglePolice: () =>
+                                    setState(() => _showPolice = !_showPolice),
+                              )),
+                ),
+              ),
+            ),
           ),
 
           // Legend
@@ -914,22 +923,38 @@ class _MapScreenState extends State<MapScreen>
             // Current Step Indicator at Top
             Positioned(
               top: MediaQuery.of(context).padding.top + 70,
-              left: 12,
-              right: 12,
-              child: _StepIndicator(routeProvider: routeProvider),
+              left: 0,
+              right: 0,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: _StepIndicator(routeProvider: routeProvider),
+                  ),
+                ),
+              ),
             ),
 
             Positioned(
               left: 0,
               right: 0,
               bottom: 120,
-              child: _NavigationOverlay(
-                routeProvider: routeProvider,
-                onStop: () {
-                  setState(() => _isNavigating = false);
-                  _voice.stop();
-                },
-                onReroute: () => routeProvider.reroute(),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: _NavigationOverlay(
+                      routeProvider: routeProvider,
+                      onStop: () {
+                        setState(() => _isNavigating = false);
+                        _voice.stop();
+                      },
+                      onReroute: () => routeProvider.reroute(),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -975,9 +1000,17 @@ class _MapScreenState extends State<MapScreen>
               if (text == null) return const SizedBox.shrink();
               return Positioned(
                 top: MediaQuery.of(context).padding.top + 80,
-                left: 16,
-                right: 16,
-                child: _VoiceAlertOverlay(text: text),
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _VoiceAlertOverlay(text: text),
+                    ),
+                  ),
+                ),
               );
             },
           ),
@@ -1100,7 +1133,11 @@ class _NavigationOverlay extends StatelessWidget {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                        Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         SizedBox(width: 6),
                         Text(
                           'Reroute',
@@ -1446,85 +1483,89 @@ class _NavPanelState extends State<_NavPanel>
             // Status-bar spacer (safe area)
             SizedBox(height: topPad + 8),
 
-            // ── Top icon row ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _expanded
-                        ? const SizedBox.shrink()
-                        : GestureDetector(
-                            onTap: _open,
-                            child: Container(
-                              height: 50,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.14),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 3),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _expanded
+                            ? const SizedBox.shrink()
+                            : GestureDetector(
+                                onTap: _open,
+                                child: Container(
+                                  height: 50,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
                                   ),
-                                ],
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.search_rounded,
-                                    color: AppTheme.textGrey,
-                                    size: 22,
-                                  ),
-                                  SizedBox(width: 10),
-                                  Flexible(
-                                    child: Text(
-                                      'Where do you want to go?',
-                                      style: TextStyle(
-                                        color: AppTheme.textGrey,
-                                        fontSize: 15,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.14),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 3),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
+                                    ],
                                   ),
-                                ],
+                                  child: const Row(
+                                    children: [
+                                      Icon(
+                                        Icons.search_rounded,
+                                        color: AppTheme.textGrey,
+                                        size: 22,
+                                      ),
+                                      SizedBox(width: 10),
+                                      Flexible(
+                                        child: Text(
+                                          'Where do you want to go?',
+                                          style: TextStyle(
+                                            color: AppTheme.textGrey,
+                                            fontSize: 15,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
+                      ),
+                      const SizedBox(width: 8),
+                      _IconBtn(
+                        icon: Icons.record_voice_over_rounded,
+                        color: AppTheme.infoBlue,
+                        bg: Colors.white,
+                        badge: widget.voice.currentLanguage.toUpperCase(),
+                        onTap: widget.onShowLanguagePicker,
+                      ),
+                      const SizedBox(width: 8),
+                      Consumer<RouteProvider>(
+                        builder: (_, rp2, __) => _IconBtn(
+                          icon: rp2.notificationsEnabled
+                              ? Icons.notifications_active_rounded
+                              : Icons.notifications_off_rounded,
+                          color: rp2.notificationsEnabled
+                              ? AppTheme.primaryRed
+                              : Colors.grey,
+                          bg: Colors.white,
+                          onTap: widget.onToggleNotifications,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _IconBtn(
+                        icon: Icons.my_location_rounded,
+                        color: AppTheme.primaryRed,
+                        bg: Colors.white,
+                        onTap: widget.onReCenter,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  _IconBtn(
-                    icon: Icons.record_voice_over_rounded,
-                    color: AppTheme.infoBlue,
-                    bg: Colors.white,
-                    badge: widget.voice.currentLanguage.toUpperCase(),
-                    onTap: widget.onShowLanguagePicker,
-                  ),
-                  const SizedBox(width: 8),
-                  Consumer<RouteProvider>(
-                    builder: (_, rp2, __) => _IconBtn(
-                      icon: rp2.notificationsEnabled
-                          ? Icons.notifications_active_rounded
-                          : Icons.notifications_off_rounded,
-                      color: rp2.notificationsEnabled
-                          ? AppTheme.primaryRed
-                          : Colors.grey,
-                      bg: Colors.white,
-                      onTap: widget.onToggleNotifications,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _IconBtn(
-                    icon: Icons.my_location_rounded,
-                    color: AppTheme.primaryRed,
-                    bg: Colors.white,
-                    onTap: widget.onReCenter,
-                  ),
-                ],
+                ),
               ),
             ),
 
@@ -1533,470 +1574,516 @@ class _NavPanelState extends State<_NavPanel>
               sizeFactor: _anim,
               child: FadeTransition(
                 opacity: _anim,
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.14),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Header Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.fromLTRB(20, 16, 0, 8),
-                            child: Row(
-                              children: [
-                                Text(
-                                  'Route Planner',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppTheme.textDark,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(0, 8, 8, 0),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: AppTheme.textGrey,
-                              ),
-                              onPressed: _close,
-                            ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.14),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                      // Inputs Layout
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-                        child: IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Header Row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              // Visual connection (Dot, Line, Pin)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  right: 14,
-                                  top: 16,
-                                  bottom: 16,
-                                ),
-                                child: Column(
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(20, 16, 0, 8),
+                                child: Row(
                                   children: [
-                                    Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: BoxDecoration(
-                                        color: Colors.transparent,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: AppTheme.successGreen,
-                                          width: 3,
-                                        ),
+                                    Text(
+                                      'Route Planner',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: AppTheme.textDark,
                                       ),
-                                    ),
-                                    Expanded(
-                                      child: CustomPaint(
-                                        painter: _DashedLinePainter(),
-                                        size: const Size(12, double.infinity),
-                                      ),
-                                    ),
-                                    const Icon(
-                                      Icons.location_on_rounded,
-                                      color: AppTheme.primaryRed,
-                                      size: 16,
                                     ),
                                   ],
                                 ),
                               ),
-                              // Input fields
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    _NavFieldBox(
-                                      controller: _fromCtrl,
-                                      focusNode: _fromFocus,
-                                      hasTextNotifier: _fromHasText,
-                                      label: 'Starting from',
-                                      hint: 'Your location',
-                                      isActive: _activeField == 'from',
-                                      onTap: () =>
-                                          setState(() => _activeField = 'from'),
-                                      onChanged: _onChanged,
-                                      onClear: () {
-                                        _fromCtrl.clear();
-                                        context.read<RouteProvider>()
-                                          ..clearFrom()
-                                          ..clearSuggestions();
-                                        _fromFocus.requestFocus();
-                                      },
-                                      onMyLocation: () {
-                                        final rp = context.read<RouteProvider>();
-                                        rp.useCurrentLocationAsStart();
-                                        _fromCtrl.text = rp.from?.shortName ?? 'My Location';
-                                        _fromFocus.unfocus();
-                                      },
-                                    ),
-                                    _NavFieldBox(
-                                      controller: _toCtrl,
-                                      focusNode: _toFocus,
-                                      hasTextNotifier: _toHasText,
-                                      label: 'Destination',
-                                      hint: 'Where to?',
-                                      isActive: _activeField == 'to',
-                                      onTap: () =>
-                                          setState(() => _activeField = 'to'),
-                                      onChanged: _onChanged,
-                                      onClear: () {
-                                        _toCtrl.clear();
-                                        context.read<RouteProvider>()
-                                          ..clearTo()
-                                          ..clearSuggestions();
-                                        _toFocus.requestFocus();
-                                      },
-                                    ),
-                                  ],
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(0, 8, 8, 0),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: AppTheme.textGrey,
+                                  ),
+                                  onPressed: _close,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                      // ── Suggestions — only this Consumer rebuilds on search results ──
-                      Consumer<RouteProvider>(
-                        builder: (_, rp, __) {
-                          if (!_expanded || rp.suggestions.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          final isFrom = _activeField == 'from';
-                          final col = isFrom
-                              ? AppTheme.successGreen
-                              : AppTheme.primaryRed;
-                          return Container(
-                            margin: const EdgeInsets.fromLTRB(14, 4, 14, 0),
-                            constraints: const BoxConstraints(maxHeight: 220),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.12),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: ListView.separated(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                shrinkWrap: true,
-                                itemCount: rp.suggestions.length,
-                                separatorBuilder: (_, __) =>
-                                    const Divider(height: 1, indent: 54),
-                                itemBuilder: (_, i) {
-                                  final s = rp.suggestions[i];
-                                  return ListTile(
-                                    leading: Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: BoxDecoration(
-                                        color: col.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        Icons.location_on_rounded,
-                                        size: 18,
-                                        color: col,
-                                      ),
-                                    ),
-                                    title: Text(
-                                      s.shortName,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppTheme.textDark,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    subtitle: Text(
-                                      s.displayName,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppTheme.textGrey,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    onTap: () => _pickSuggestion(s),
-                                    dense: true,
-                                  );
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      // Route Summaries and Action Button
-                      Consumer<RouteProvider>(
-                        builder: (_, rp, __) {
-                          if (rp.status == RouteStatus.loadingRoute) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: AppTheme.primaryRed,
-                                ),
-                              ),
-                            );
-                          } else if (rp.status == RouteStatus.found) {
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                              child: Column(
+                          // Inputs Layout
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                            child: IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  // Route Card
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF006E26),
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(
-                                            0xFF006E26,
-                                          ).withOpacity(0.2),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
+                                  // Visual connection (Dot, Line, Pin)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      right: 14,
+                                      top: 16,
+                                      bottom: 16,
                                     ),
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
                                       children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              rp.recommendedIsAlternative
-                                                  ? 'Safer Alternative'
-                                                  : 'Optimal Route',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                        Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: Colors.transparent,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: AppTheme.successGreen,
+                                              width: 3,
                                             ),
-                                            const Icon(
-                                              Icons.navigation_rounded,
-                                              color: Colors.white,
-                                              size: 20,
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.baseline,
-                                          textBaseline: TextBaseline.alphabetic,
-                                          children: [
-                                            Text(
-                                              '${rp.durationMins}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 32,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            const Text(
-                                              'min',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${rp.distanceKm.toStringAsFixed(1)} km · ${rp.routeAlerts.isNotEmpty ? "${rp.routeAlerts.length} Alerts" : "Clear route"}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
                                           ),
+                                        ),
+                                        Expanded(
+                                          child: CustomPaint(
+                                            painter: _DashedLinePainter(),
+                                            size: const Size(
+                                              12,
+                                              double.infinity,
+                                            ),
+                                          ),
+                                        ),
+                                        const Icon(
+                                          Icons.location_on_rounded,
+                                          color: AppTheme.primaryRed,
+                                          size: 16,
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
-                                  // Action Button
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF006E26,
+                                  // Input fields
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        _NavFieldBox(
+                                          controller: _fromCtrl,
+                                          focusNode: _fromFocus,
+                                          hasTextNotifier: _fromHasText,
+                                          label: 'Starting from',
+                                          hint: 'Your location',
+                                          isActive: _activeField == 'from',
+                                          onTap: () => setState(
+                                            () => _activeField = 'from',
+                                          ),
+                                          onChanged: _onChanged,
+                                          onClear: () {
+                                            _fromCtrl.clear();
+                                            context.read<RouteProvider>()
+                                              ..clearFrom()
+                                              ..clearSuggestions();
+                                            _fromFocus.requestFocus();
+                                          },
+                                          onMyLocation: () {
+                                            final rp = context
+                                                .read<RouteProvider>();
+                                            rp.useCurrentLocationAsStart();
+                                            _fromCtrl.text =
+                                                rp.from?.shortName ??
+                                                'My Location';
+                                            _fromFocus.unfocus();
+                                          },
                                         ),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
+                                        _NavFieldBox(
+                                          controller: _toCtrl,
+                                          focusNode: _toFocus,
+                                          hasTextNotifier: _toHasText,
+                                          label: 'Destination',
+                                          hint: 'Where to?',
+                                          isActive: _activeField == 'to',
+                                          onTap: () => setState(
+                                            () => _activeField = 'to',
+                                          ),
+                                          onChanged: _onChanged,
+                                          onClear: () {
+                                            _toCtrl.clear();
+                                            context.read<RouteProvider>()
+                                              ..clearTo()
+                                              ..clearSuggestions();
+                                            _toFocus.requestFocus();
+                                          },
                                         ),
-                                        shape: RoundedRectangleBorder(
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // ── Suggestions — only this Consumer rebuilds on search results ──
+                          Consumer<RouteProvider>(
+                            builder: (_, rp, __) {
+                              if (!_expanded || rp.suggestions.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              final isFrom = _activeField == 'from';
+                              final col = isFrom
+                                  ? AppTheme.successGreen
+                                  : AppTheme.primaryRed;
+                              return Container(
+                                margin: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+                                constraints: const BoxConstraints(
+                                  maxHeight: 220,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.12),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: ListView.separated(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
+                                    shrinkWrap: true,
+                                    itemCount: rp.suggestions.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(height: 1, indent: 54),
+                                    itemBuilder: (_, i) {
+                                      final s = rp.suggestions[i];
+                                      return ListTile(
+                                        leading: Container(
+                                          width: 36,
+                                          height: 36,
+                                          decoration: BoxDecoration(
+                                            color: col.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.location_on_rounded,
+                                            size: 18,
+                                            color: col,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          s.shortName,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.textDark,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Text(
+                                          s.displayName,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppTheme.textGrey,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        onTap: () => _pickSuggestion(s),
+                                        dense: true,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          // Route Summaries and Action Button
+                          Consumer<RouteProvider>(
+                            builder: (_, rp, __) {
+                              if (rp.status == RouteStatus.loadingRoute) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppTheme.primaryRed,
+                                    ),
+                                  ),
+                                );
+                              } else if (rp.status == RouteStatus.found) {
+                                return Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    4,
+                                    20,
+                                    20,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      // Route Card
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF006E26),
                                           borderRadius: BorderRadius.circular(
                                             16,
                                           ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(
+                                                0xFF006E26,
+                                              ).withOpacity(0.2),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
                                         ),
-                                        elevation: 0,
-                                      ),
-                                      onPressed: () {
-                                        // Collapse panel but KEEP route data so polylines remain on map
-                                        FocusScope.of(context).unfocus();
-                                        setState(() => _expanded = false);
-                                        _animCtrl.reverse();
-                                        widget.onNavigationToggle(true);
-
-                                        // Move camera to actual route start, not GPS dot
-                                        if (rp.routeOrigin != null) {
-                                          Future.delayed(
-                                            const Duration(milliseconds: 300),
-                                            () {
-                                              widget.mapController.move(
-                                                rp.routeOrigin!,
-                                                15.5,
-                                              );
-                                            },
-                                          );
-                                        }
-                                      },
-                                      child: const Text(
-                                        'Start navigation',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  if (rp.betweenEndpointsAlert != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Text(
-                                        rp.betweenEndpointsAlert!,
-                                        style: const TextStyle(
-                                          color: Color(0xFFB45309),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  if (rp.textSuggestions.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Text(
-                                        rp.textSuggestions.take(3).join(' · '),
-                                        style: const TextStyle(
-                                          color: AppTheme.textMed,
-                                          fontSize: 11,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ),
-                                  Text(
-                                    'Engine: ${rp.routingBackend == 'openrouteservice' ? 'OpenRouteService (avoid blockages)' : 'OSRM (best-effort)'}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppTheme.textGrey,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            );
-                          } else if (rp.status == RouteStatus.idle ||
-                              rp.status == RouteStatus.error) {
-                            final canPlan = rp.from != null && rp.to != null;
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  if (rp.error != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 12,
-                                      ),
-                                      child: Text(
-                                        rp.error!,
-                                        style: const TextStyle(
-                                          color: AppTheme.criticalRed,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Text(
+                                                  rp.recommendedIsAlternative
+                                                      ? 'Safer Alternative'
+                                                      : 'Optimal Route',
+                                                  style: const TextStyle(
+                                                    color: Colors.white70,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const Icon(
+                                                  Icons.navigation_rounded,
+                                                  color: Colors.white,
+                                                  size: 20,
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.baseline,
+                                              textBaseline:
+                                                  TextBaseline.alphabetic,
+                                              children: [
+                                                Text(
+                                                  '${rp.durationMins}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 32,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                const Text(
+                                                  'min',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${rp.distanceKm.toStringAsFixed(1)} km · ${rp.routeAlerts.isNotEmpty ? "${rp.routeAlerts.length} Alerts" : "Clear route"}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF006E26),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      elevation: 0,
-                                      disabledBackgroundColor: const Color(
-                                        0xFFE0E0E0,
-                                      ),
-                                      disabledForegroundColor: const Color(
-                                        0xFFA0A0A0,
-                                      ),
-                                    ),
-                                    onPressed: canPlan
-                                        ? () {
+                                      const SizedBox(height: 16),
+                                      // Action Button
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF006E26,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 16,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed: () {
+                                            // Collapse panel but KEEP route data so polylines remain on map
                                             FocusScope.of(context).unfocus();
-                                            rp.planSafeRoute();
-                                          }
-                                        : null,
-                                    child: const Text(
-                                      'Plan safe route',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
+                                            setState(() => _expanded = false);
+                                            _animCtrl.reverse();
+                                            widget.onNavigationToggle(true);
+
+                                            // Move camera to actual route start, not GPS dot
+                                            if (rp.routeOrigin != null) {
+                                              Future.delayed(
+                                                const Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                () {
+                                                  widget.mapController.move(
+                                                    rp.routeOrigin!,
+                                                    15.5,
+                                                  );
+                                                },
+                                              );
+                                            }
+                                          },
+                                          child: const Text(
+                                            'Start navigation',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(height: 12),
+                                      if (rp.betweenEndpointsAlert != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 8,
+                                          ),
+                                          child: Text(
+                                            rp.betweenEndpointsAlert!,
+                                            style: const TextStyle(
+                                              color: Color(0xFFB45309),
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      if (rp.textSuggestions.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 8,
+                                          ),
+                                          child: Text(
+                                            rp.textSuggestions
+                                                .take(3)
+                                                .join(' · '),
+                                            style: const TextStyle(
+                                              color: AppTheme.textMed,
+                                              fontSize: 11,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      Text(
+                                        'Engine: ${rp.routingBackend == 'openrouteservice' ? 'OpenRouteService (avoid blockages)' : 'OSRM (best-effort)'}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppTheme.textGrey,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
+                                );
+                              } else if (rp.status == RouteStatus.idle ||
+                                  rp.status == RouteStatus.error) {
+                                final canPlan =
+                                    rp.from != null && rp.to != null;
+                                return Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    4,
+                                    20,
+                                    20,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (rp.error != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 12,
+                                          ),
+                                          child: Text(
+                                            rp.error!,
+                                            style: const TextStyle(
+                                              color: AppTheme.criticalRed,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFF006E26,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                          disabledBackgroundColor: const Color(
+                                            0xFFE0E0E0,
+                                          ),
+                                          disabledForegroundColor: const Color(
+                                            0xFFA0A0A0,
+                                          ),
+                                        ),
+                                        onPressed: canPlan
+                                            ? () {
+                                                FocusScope.of(
+                                                  context,
+                                                ).unfocus();
+                                                rp.planSafeRoute();
+                                              }
+                                            : null,
+                                        child: const Text(
+                                          'Plan safe route',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -2695,10 +2782,7 @@ class _VoiceAlertOverlay extends StatelessWidget {
       builder: (context, value, child) {
         return Transform.translate(
           offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value.clamp(0.0, 1.0),
-            child: child,
-          ),
+          child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
         );
       },
       child: Container(
