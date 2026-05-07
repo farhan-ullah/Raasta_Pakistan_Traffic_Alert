@@ -172,148 +172,159 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 120),
+              padding: const EdgeInsets.fromLTRB(
+                22,
+                8,
+                22,
+                140,
+              ), // extra bottom padding for navbar clearance
               children: [
-                const SizedBox(height: 18),
-                const Text(
-                  'What happened?',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF01411c),
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
+                        const Text(
+                          'What happened?',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF01411c),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.black.withOpacity(0.05),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: _buildTypeTile(_types[0])),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: _buildTypeTile(_types[1])),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(child: _buildTypeTile(_types[2])),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: _buildTypeTile(_types[3])),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              _buildTypeTile({
+                                'value': 'vip_movement',
+                                'label': 'VIP Movement',
+                                'icon': Icons.star_rounded,
+                              }, fullWidth: true),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Location',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF01411c),
+                          ),
+                        ),
+                        const Text(
+                          'Search any place — region is set automatically.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF414941),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        RaastTextField(
+                          controller: _locationCtrl,
+                          hintText: 'e.g. DHA Lahore, F-7 Islamabad...',
+                          prefixIcon: const Icon(
+                            Icons.location_on_rounded,
+                            color: Color(0xFF717970),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        RaastTextField(
+                          controller: _detailCtrl,
+                          hintText: 'Extra detail (optional)',
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Description (optional)',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF01411c),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        RaastTextField(
+                          controller: _descCtrl,
+                          hintText:
+                              'Add more details about what you\'re seeing...',
+                          maxLines: 4,
+                        ),
+                        const SizedBox(height: 24),
+                        RaastPhoneField(controller: _phoneCtrl),
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF006E26),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: _submitting ? null : _submit,
+                            child: _submitting
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Text(
+                                        'Submit Report',
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      SizedBox(width: 10),
+                                      Icon(Icons.send_rounded, size: 20),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.black.withOpacity(0.05)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: _buildTypeTile(_types[0])),
-                          const SizedBox(width: 10),
-                          Expanded(child: _buildTypeTile(_types[1])),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(child: _buildTypeTile(_types[2])),
-                          const SizedBox(width: 10),
-                          Expanded(child: _buildTypeTile(_types[3])),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _buildTypeTile({
-                        'value': 'vip_movement',
-                        'label': 'VIP Movement',
-                        'icon': Icons.star_rounded,
-                      }, fullWidth: true),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-                const Text(
-                  'Location',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF01411c),
-                  ),
-                ),
-                const Text(
-                  'Search any place — region is set automatically.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF414941)),
-                ),
-                const SizedBox(height: 10),
-                RaastTextField(
-                  controller: _locationCtrl,
-                  hintText: 'e.g. DHA Lahore, F-7 Islamabad...',
-                  prefixIcon: const Icon(
-                    Icons.location_on_rounded,
-                    color: Color(0xFF717970),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                RaastTextField(
-                  controller: _detailCtrl,
-                  hintText: 'Extra detail (optional)',
-                ),
-
-                const SizedBox(height: 18),
-                const Text(
-                  'Description (optional)',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF01411c),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                RaastTextField(
-                  controller: _descCtrl,
-                  hintText: 'Add more details about what you\'re seeing...',
-                  maxLines: 4,
-                ),
-
-                const SizedBox(height: 18),
-                RaastPhoneField(controller: _phoneCtrl),
               ],
             ),
           ),
         ],
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 22,
-          vertical: 80,
-        ), // offset above the pill nav
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF006E26),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-              ),
-              elevation: 8,
-              shadowColor: const Color(0xFF006E26).withOpacity(0.5),
-            ),
-            onPressed: _submitting ? null : _submit,
-            child: _submitting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Text(
-                        'Submit Report',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(width: 10),
-                      Icon(Icons.send_rounded, size: 20),
-                    ],
-                  ),
-          ),
-        ),
       ),
     );
   }
