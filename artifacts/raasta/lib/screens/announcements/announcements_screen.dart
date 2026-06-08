@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/alert_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/city_admin_provider.dart';
 import '../../models/announcement.dart';
-import '../../models/traffic_alert.dart';
 import '../../theme/app_theme.dart';
 
 class AnnouncementsScreen extends StatefulWidget {
@@ -14,45 +12,25 @@ class AnnouncementsScreen extends StatefulWidget {
 }
 
 class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
-  String _category = 'All';
-  static const _cats = [
-    'All',
-    'Holiday',
-    'Road Closure',
-    'Road Projects',
-    'Event',
-    'Emergency',
-    'Maintenance',
-    'Weather',
-  ];
+  static const _postCategories = ['Holiday', 'Weather', 'Public Notice'];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CityAdminProvider>().fetchAnnouncements();
-      context.read<AlertProvider>().fetchAlerts();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<CityAdminProvider, AlertProvider>(
-      builder: (ctx, provider, alertProvider, _) {
-        final items = provider.getByCategory(_category);
-        final unpinned = items.where((a) => !a.isPinned).toList();
-        final incidents = _category == 'All'
-            ? alertProvider.publishedIncidents
-            : alertProvider.publishedIncidents
-                .where((i) => i.updateCategory == _category)
-                .toList();
-        final feed = <_UpdateFeedItem>[
-          ...unpinned.map(_UpdateFeedItem.announcement),
-          ...incidents.map(_UpdateFeedItem.incident),
-        ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        final isLoading = (provider.isLoading || alertProvider.isLoading) &&
-            feed.isEmpty &&
-            provider.pinned.isEmpty;
+    return Consumer<CityAdminProvider>(
+      builder: (ctx, provider, _) {
+        final unpinned = provider.announcements
+            .where((a) => !a.isPinned)
+            .toList();
+        final isLoading =
+            provider.isLoading && unpinned.isEmpty && provider.pinned.isEmpty;
         return Scaffold(
           backgroundColor: AppTheme.background,
           body: CustomScrollView(
@@ -112,7 +90,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                'Official notices & police-approved updates',
+                                'Official notices from CDA & authorities',
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 13,
@@ -122,55 +100,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                ),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(54),
-                  child: Container(
-                    color: const Color(0xFF2E7D32),
-                    child: SizedBox(
-                      height: 54,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        itemCount: _cats.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final sel = _cats[i] == _category;
-                          return GestureDetector(
-                            onTap: () => setState(() => _category = _cats[i]),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                _cats[i],
-                                style: TextStyle(
-                                  color: sel
-                                      ? const Color(0xFF2E7D32)
-                                      : Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: sel
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
                     ),
                   ),
                 ),
@@ -219,13 +148,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                 const SliverFillRemaining(
                   child: Center(child: CircularProgressIndicator()),
                 )
-              else if (feed.isEmpty && provider.pinned.isEmpty)
+              else if (unpinned.isEmpty && provider.pinned.isEmpty)
                 SliverFillRemaining(
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
                       child: Text(
-                        'No updates yet.\nPolice-approved incidents and official announcements will appear here.',
+                        'No updates yet.\nOfficial announcements from city authorities will appear here.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.grey.shade600,
@@ -241,25 +170,29 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   padding: const EdgeInsets.only(bottom: 100),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (_, i) {
-                        final item = feed[i];
-                        if (item.announcement != null) {
-                          return _AnnouncementCard(ann: item.announcement!);
-                        }
-                        return _IncidentUpdateCard(incident: item.incident!);
-                      },
-                      childCount: feed.length,
+                      (_, i) => _AnnouncementCard(ann: unpinned[i]),
+                      childCount: unpinned.length,
                     ),
                   ),
                 ),
             ],
           ),
-          floatingActionButton: context.watch<AuthProvider>().isCityAdmin || context.watch<AuthProvider>().isSuperAdmin
-              ? FloatingActionButton.extended(
-                  onPressed: () => _addAnnouncement(context),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Announcement'),
-                  backgroundColor: const Color(0xFF1B5E20),
+          floatingActionButton:
+              context.watch<AuthProvider>().isCityAdmin ||
+                  context.watch<AuthProvider>().isSuperAdmin
+              ? Padding(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(ctx).padding.bottom + 20,
+                  ),
+                  child: FloatingActionButton.extended(
+                    onPressed: () => _addAnnouncement(context),
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text(
+                      'Add Announcement',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    backgroundColor: const Color(0xFF1B5E20),
+                  ),
                 )
               : null,
         );
@@ -306,8 +239,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     labelText: 'Category',
                     border: OutlineInputBorder(),
                   ),
-                  items: _cats
-                      .where((c) => c != 'All')
+                  items: _postCategories
                       .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                       .toList(),
                   onChanged: (v) => ss(() => category = v!),
@@ -371,29 +303,32 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       onPressed: posting
                           ? null
                           : () async {
-                              if (titleCtrl.text.isEmpty || bodyCtrl.text.isEmpty) {
+                              if (titleCtrl.text.isEmpty ||
+                                  bodyCtrl.text.isEmpty) {
                                 return;
                               }
                               btnSs(() => posting = true);
                               try {
-                                await context.read<CityAdminProvider>().addAnnouncement(
-                                  CityAnnouncement(
-                                    id: '',
-                                    title: titleCtrl.text,
-                                    body: bodyCtrl.text,
-                                    category: category,
-                                    priority: priority,
-                                    city: 'Islamabad',
-                                    department: deptCtrl.text,
-                                    affectedAreas: areaCtrl.text
-                                        .split(',')
-                                        .map((e) => e.trim())
-                                        .toList(),
-                                    isPinned: isPinned,
-                                    views: 0,
-                                    createdAt: DateTime.now(),
-                                  ),
-                                );
+                                await context
+                                    .read<CityAdminProvider>()
+                                    .addAnnouncement(
+                                      CityAnnouncement(
+                                        id: '',
+                                        title: titleCtrl.text,
+                                        body: bodyCtrl.text,
+                                        category: category,
+                                        priority: priority,
+                                        city: 'Islamabad',
+                                        department: deptCtrl.text,
+                                        affectedAreas: areaCtrl.text
+                                            .split(',')
+                                            .map((e) => e.trim())
+                                            .toList(),
+                                        isPinned: isPinned,
+                                        views: 0,
+                                        createdAt: DateTime.now(),
+                                      ),
+                                    );
                                 if (ctx.mounted) Navigator.pop(ctx);
                               } catch (e) {
                                 btnSs(() => posting = false);
@@ -431,271 +366,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 }
 
-class _UpdateFeedItem {
-  final CityAnnouncement? announcement;
-  final TrafficAlert? incident;
-  final DateTime createdAt;
-
-  const _UpdateFeedItem._({
-    this.announcement,
-    this.incident,
-    required this.createdAt,
-  });
-
-  factory _UpdateFeedItem.announcement(CityAnnouncement ann) =>
-      _UpdateFeedItem._(announcement: ann, createdAt: ann.createdAt);
-
-  factory _UpdateFeedItem.incident(TrafficAlert inc) =>
-      _UpdateFeedItem._(incident: inc, createdAt: inc.createdAt);
-}
-
-class _IncidentUpdateCard extends StatelessWidget {
-  final TrafficAlert incident;
-  const _IncidentUpdateCard({required this.incident});
-
-  static const _priorityColors = {
-    'critical': AppTheme.criticalRed,
-    'high': AppTheme.highOrange,
-    'medium': AppTheme.mediumYellow,
-    'low': AppTheme.lowGreen,
-  };
-
-  static const _typeIcons = {
-    'blockage': Icons.block_rounded,
-    'construction': Icons.construction_rounded,
-    'vip_movement': Icons.star_rounded,
-    'accident': Icons.car_crash_rounded,
-    'congestion': Icons.traffic_rounded,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final color =
-        _priorityColors[incident.severity.toLowerCase()] ?? AppTheme.textGrey;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: AppTheme.cardDecoration(),
-      clipBehavior: Clip.hardEdge,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _showDetail(context),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      _typeIcons[incident.type] ?? Icons.report_rounded,
-                      color: color,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: color,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                incident.severity.toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                incident.updateCategory,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.textGrey,
-                                ),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              incident.timeAgo,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.textGrey,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          incident.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: AppTheme.textDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                incident.description,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textMed,
-                  height: 1.5,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on_rounded,
-                    size: 13,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      incident.location,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textGrey,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.location_city_rounded,
-                    size: 13,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    incident.city,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textGrey,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showDetail(BuildContext context) {
-    final color =
-        _priorityColors[incident.severity.toLowerCase()] ?? AppTheme.textGrey;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        margin: const EdgeInsets.only(top: 48),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-          children: [
-            Text(
-              incident.title,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.textDark,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${incident.updateCategory} · ${incident.typeLabel}',
-              style: TextStyle(color: color, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              incident.description,
-              style: const TextStyle(
-                fontSize: 15,
-                color: AppTheme.textMed,
-                height: 1.6,
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Divider(),
-            const SizedBox(height: 8),
-            _detailRow(Icons.location_on_rounded, 'Location', incident.location),
-            if (incident.area.isNotEmpty)
-              _detailRow(Icons.map_rounded, 'Area', incident.area),
-            _detailRow(Icons.location_city_rounded, 'City', incident.city),
-            _detailRow(
-              Icons.verified_user_rounded,
-              'Source',
-              incident.reportedBy == 'police'
-                  ? 'Police verified'
-                  : 'Approved by police',
-            ),
-            _detailRow(Icons.schedule_rounded, 'Published', incident.timeAgo),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _detailRow(IconData icon, String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 17, color: AppTheme.textGrey),
-            const SizedBox(width: 10),
-            Text(
-              '$label: ',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: AppTheme.textDark,
-              ),
-            ),
-            Expanded(
-              child: Text(
-                value,
-                style: const TextStyle(fontSize: 13, color: AppTheme.textGrey),
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
 class _AnnouncementCard extends StatelessWidget {
   final CityAnnouncement ann;
   final bool pinned;
@@ -703,14 +373,9 @@ class _AnnouncementCard extends StatelessWidget {
 
   static const _catIcons = {
     'Holiday': Icons.celebration_rounded,
-    'Road Closure': Icons.block_rounded,
-    'Road Projects': Icons.engineering_rounded,
-    'Event': Icons.event_rounded,
-    'Emergency': Icons.emergency_rounded,
-    'Maintenance': Icons.build_rounded,
-    'Diversion': Icons.alt_route_rounded,
     'Weather': Icons.cloud_rounded,
     'Public Notice': Icons.info_rounded,
+    'General': Icons.announcement_rounded,
   };
 
   static const _priorityColors = {

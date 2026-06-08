@@ -3,7 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { db } from "@workspace/db";
 import { announcementsTable } from "@workspace/db";
-import { requirePoliceAuth } from "../middleware/policeAuth";
+import { requireStaffAuth } from "../middleware/policeAuth";
 import { catchAsync } from "../lib/dbError";
 
 const router: IRouter = Router();
@@ -35,7 +35,7 @@ router.get("/announcements", catchAsync(async (req, res): Promise<void> => {
   })));
 }));
 
-router.post("/announcements", requirePoliceAuth, catchAsync(async (req, res): Promise<void> => {
+router.post("/announcements", requireStaffAuth, catchAsync(async (req, res): Promise<void> => {
   const parsed = CreateAnnouncementBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

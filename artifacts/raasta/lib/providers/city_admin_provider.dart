@@ -31,15 +31,13 @@ class CityAdminProvider extends ChangeNotifier {
   }
 
   Future<void> addAnnouncement(CityAnnouncement ann) async {
-    try {
-      final data = ann.toJson();
-      final response = await ApiService.post('/announcements', data);
-      if (response != null && response['id'] != null) {
-        _announcements.insert(0, CityAnnouncement.fromJson(response));
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('Error creating announcement: $e');
+    final data = ann.toJson();
+    final response = await ApiService.post('/announcements', data);
+    if (response != null && response['id'] != null) {
+      _announcements.insert(0, CityAnnouncement.fromJson(response));
+      notifyListeners();
+    } else {
+      throw Exception('Failed to create announcement');
     }
   }
 

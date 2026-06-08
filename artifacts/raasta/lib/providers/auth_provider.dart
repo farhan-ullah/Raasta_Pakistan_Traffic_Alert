@@ -57,17 +57,34 @@ class AuthProvider extends ChangeNotifier {
           email: 'police@punjabpolice.gov.pk', phone: '1915', role: UserRole.police,
           badge: 'Traffic Officer', isApproved: true, createdAt: DateTime.now(),
         );
-      } else {
-        // Mock login for other roles
+      } else if (role == UserRole.superAdmin || role == UserRole.cityAdmin) {
+        final res = await ApiService.post('/auth/admin/login', {
+          'pin': password,
+          'role': role == UserRole.superAdmin ? 'super_admin' : 'city_admin',
+        });
+        ApiService.authToken = res['token'];
         _currentUser = AppUser(
-          id: '${role.toString().split('.').last}_1', 
-          username: username.isEmpty ? 'user' : username, 
-          password: '', 
-          fullName: role == UserRole.superAdmin ? 'System Admin' : (role == UserRole.business ? 'Business Owner' : 'Commuter'),
-          email: '${username.isEmpty ? 'user' : username}@raasta.pk', 
-          phone: '0000', 
+          id: '${role.toString().split('.').last}_1',
+          username: username.isEmpty ? 'admin' : username,
+          password: '',
+          fullName: role == UserRole.superAdmin ? 'System Admin' : 'City Administrator',
+          email: '${username.isEmpty ? 'admin' : username}@raasta.pk',
+          phone: '0000',
           role: role,
-          isApproved: true, 
+          isApproved: true,
+          createdAt: DateTime.now(),
+        );
+      } else {
+        ApiService.authToken = null;
+        _currentUser = AppUser(
+          id: '${role.toString().split('.').last}_1',
+          username: username.isEmpty ? 'user' : username,
+          password: '',
+          fullName: role == UserRole.business ? 'Business Owner' : 'Commuter',
+          email: '${username.isEmpty ? 'user' : username}@raasta.pk',
+          phone: '0000',
+          role: role,
+          isApproved: true,
           createdAt: DateTime.now(),
         );
       }
@@ -82,6 +99,8 @@ class AuthProvider extends ChangeNotifier {
       await prefs.setString('auth_phone', _currentUser!.phone);
       if (ApiService.authToken != null) {
         await prefs.setString('auth_token', ApiService.authToken!);
+      } else {
+        await prefs.remove('auth_token');
       }
 
       notifyListeners();
