@@ -31,6 +31,14 @@ class AuthProvider extends ChangeNotifier {
         }
       }
 
+      final needsApiToken = role == UserRole.police ||
+          role == UserRole.superAdmin ||
+          role == UserRole.cityAdmin;
+      if (needsApiToken && (token == null || token.isEmpty)) {
+        await prefs.clear();
+        return;
+      }
+
       ApiService.authToken = token;
       _currentUser = AppUser(
         id: prefs.getString('auth_id') ?? 'saved_user',

@@ -14,11 +14,10 @@ const isDev = process.env["NODE_ENV"] === "development";
 const POLICE_PIN =
   process.env["POLICE_PIN"] ?? (isDev ? "raasta2024" : undefined);
 
-const SUPER_ADMIN_PIN =
-  process.env["SUPER_ADMIN_PIN"] ?? (isDev ? "admin123" : undefined);
+/** Override in production via env; defaults match Flutter demo login chips. */
+const SUPER_ADMIN_PIN = process.env["SUPER_ADMIN_PIN"] ?? "admin123";
 
-const CITY_ADMIN_PIN =
-  process.env["CITY_ADMIN_PIN"] ?? (isDev ? "city123" : undefined);
+const CITY_ADMIN_PIN = process.env["CITY_ADMIN_PIN"] ?? "city123";
 
 router.post("/auth/police/login", (req, res) => {
   if (!POLICE_PIN) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/city_admin_provider.dart';
+import '../../services/api_service.dart';
 import '../../models/announcement.dart';
 import '../../theme/app_theme.dart';
 
@@ -307,6 +308,16 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                   bodyCtrl.text.isEmpty) {
                                 return;
                               }
+                              if (ApiService.authToken == null) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Not signed in to the server. Log out, then log in again as City Admin (city123) or Super Admin (admin123).',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               btnSs(() => posting = true);
                               try {
                                 await context
@@ -333,8 +344,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               } catch (e) {
                                 btnSs(() => posting = false);
                                 if (ctx.mounted) {
+                                  final msg = e.toString();
+                                  final hint = msg.contains('Staff authentication') ||
+                                          msg.contains('authentication')
+                                      ? ' Log out and log in again with your admin password.'
+                                      : '';
                                   ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
+                                    SnackBar(content: Text('Error: $msg$hint')),
                                   );
                                 }
                               }
