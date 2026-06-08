@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/police_alert.dart';
+import '../../models/traffic_alert.dart';
+import '../../providers/alert_provider.dart';
 import '../../providers/police_provider.dart';
 import '../../providers/route_provider.dart';
 import '../../theme/app_theme.dart';
@@ -14,11 +16,14 @@ class PoliceScreen extends StatefulWidget {
 
 class _PoliceScreenState extends State<PoliceScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 2, vsync: this);
+  late final TabController _tab = TabController(length: 3, vsync: this);
 
   @override
   void initState() {
     super.initState();
+    _tab.addListener(() {
+      if (mounted) setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PoliceProvider>().fetchAlerts();
     });
@@ -43,30 +48,35 @@ class _PoliceScreenState extends State<PoliceScreen>
           tabs: const [
             Tab(icon: Icon(Icons.security), text: 'VIP Movement'),
             Tab(icon: Icon(Icons.block), text: 'Road Blockage'),
+            Tab(icon: Icon(Icons.person_outline), text: 'User Reports'),
           ],
         ),
       ),
       body: Consumer<PoliceProvider>(
         builder: (context, provider, _) {
-          if (provider.isLoading && provider.allAlerts.isEmpty) {
+          if (provider.isLoading &&
+              provider.allAlerts.isEmpty &&
+              provider.pendingUserReports.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
           return RefreshIndicator(
             onRefresh: provider.fetchAlerts,
             child: TabBarView(
               controller: _tab,
-              children: const [_VipTab(), _BlockageTab()],
+              children: const [_VipTab(), _BlockageTab(), _UserReportsTab()],
             ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            _tab.index == 0 ? _addVip(context) : _addBlockage(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New Alert'),
-        backgroundColor: AppTheme.primaryRed,
-      ),
+      floatingActionButton: _tab.index < 2
+          ? FloatingActionButton.extended(
+              onPressed: () =>
+                  _tab.index == 0 ? _addVip(context) : _addBlockage(context),
+              icon: const Icon(Icons.add),
+              label: const Text('New Alert'),
+              backgroundColor: AppTheme.primaryRed,
+            )
+          : null,
     );
   }
 
@@ -143,27 +153,16 @@ class _PoliceScreenState extends State<PoliceScreen>
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: RaastAutocomplete(
-                        controller: startCtrl,
-                        label: 'From',
-                        onSelected: (s) => ss(() {
-                          lat = s.coords.latitude;
-                          lng = s.coords.longitude;
-                        }),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: RaastAutocomplete(
-                        controller: endCtrl,
-                        label: 'To',
-                      ),
-                    ),
-                  ],
+                RaastAutocomplete(
+                  controller: startCtrl,
+                  label: 'From',
+                  onSelected: (s) => ss(() {
+                    lat = s.coords.latitude;
+                    lng = s.coords.longitude;
+                  }),
                 ),
+                const SizedBox(height: 12),
+                RaastAutocomplete(controller: endCtrl, label: 'To'),
                 const SizedBox(height: 12),
                 RaastAutocomplete(
                   controller: routeCtrl,
@@ -201,7 +200,10 @@ class _PoliceScreenState extends State<PoliceScreen>
                                     lng: lng,
                                   ),
                                 );
-                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (ctx.mounted) {
+                                  await context.read<AlertProvider>().fetchAlerts();
+                                  Navigator.pop(ctx);
+                                }
                               } catch (e) {
                                 btnSs(() => posting = false);
                                 if (ctx.mounted) {
@@ -354,7 +356,10 @@ class _PoliceScreenState extends State<PoliceScreen>
                                     lng: lng,
                                   ),
                                 );
-                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (ctx.mounted) {
+                                  await context.read<AlertProvider>().fetchAlerts();
+                                  Navigator.pop(ctx);
+                                }
                               } catch (e) {
                                 btnSs(() => posting = false);
                                 if (ctx.mounted) {
@@ -404,6 +409,182 @@ class _VipTab extends StatelessWidget {
             itemCount: alerts.length,
             itemBuilder: (_, i) => _PoliceCard(alert: alerts[i]),
           );
+  }
+}
+
+class _UserReportsTab extends StatelessWidget {
+  const _UserReportsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final reports = context.watch<PoliceProvider>().pendingUserReports;
+    if (reports.isEmpty) {
+      return const Center(
+        child: Text(
+          'No user-submitted reports pending review',
+          style: TextStyle(color: AppTheme.textGrey),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 80, top: 8),
+      itemCount: reports.length,
+      itemBuilder: (_, i) => _UserReportCard(report: reports[i]),
+    );
+  }
+}
+
+class _UserReportCard extends StatelessWidget {
+  final TrafficAlert report;
+  const _UserReportCard({required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'Submitted by User',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  report.timeAgo,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textGrey,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              report.title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              report.typeLabel,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+            ),
+            if (report.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                report.description,
+                style: const TextStyle(fontSize: 13, color: AppTheme.textMed),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.location_on, size: 14, color: AppTheme.textGrey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    report.location,
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+                  ),
+                ),
+              ],
+            ),
+            if (report.reporterPhone != null &&
+                report.reporterPhone!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.phone, size: 14, color: AppTheme.textGrey),
+                  const SizedBox(width: 4),
+                  Text(
+                    report.reporterPhone!,
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      await context
+                          .read<PoliceProvider>()
+                          .rejectUserReport(report.id);
+                      if (context.mounted) {
+                        await context.read<AlertProvider>().fetchAlerts();
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Reject'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      await context
+                          .read<PoliceProvider>()
+                          .approveUserReport(report.id);
+                      if (context.mounted) {
+                        await context.read<AlertProvider>().fetchAlerts();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Report approved and published on map'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Approve'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.successGreen,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -584,8 +765,13 @@ class _PoliceCard extends StatelessWidget {
         ),
         Expanded(
           child: Text(
-            value,
-            style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+            value.trim().isEmpty ? 'Not specified' : value,
+            style: TextStyle(
+              fontSize: 12,
+              color: value.trim().isEmpty
+                  ? AppTheme.textGrey.withValues(alpha: 0.6)
+                  : AppTheme.textGrey,
+            ),
           ),
         ),
       ],

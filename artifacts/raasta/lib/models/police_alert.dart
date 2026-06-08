@@ -71,15 +71,51 @@ class PoliceAlert {
     );
   }
 
+  static ({String start, String end, String route}) _routeFieldsFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final location = (json['location'] as String? ?? '').trim();
+    final area = (json['area'] as String? ?? '').trim();
+    final affected = (json['affectedRoads'] as List<dynamic>?)
+            ?.map((e) => e.toString().trim())
+            .where((s) => s.isNotEmpty)
+            .toList() ??
+        [];
+
+    if (area.isNotEmpty) {
+      return (
+        start: location,
+        end: area,
+        route: affected.isNotEmpty ? affected.first : location,
+      );
+    }
+
+    if (location.contains(' → ')) {
+      final parts = location.split(' → ');
+      return (
+        start: parts.first.trim(),
+        end: parts.sublist(1).join(' → ').trim(),
+        route: location,
+      );
+    }
+
+    return (
+      start: location,
+      end: '',
+      route: affected.isNotEmpty ? affected.first : location,
+    );
+  }
+
   factory PoliceAlert.fromJson(Map<String, dynamic> json) {
+    final routeFields = _routeFieldsFromJson(json);
     return PoliceAlert(
       id: json['id']?.toString() ?? '',
       type: json['type'] == 'vip_movement' ? PoliceAlertType.vipMovement : PoliceAlertType.roadBlockage,
       title: json['title'] ?? '',
       description: json['description'] ?? '',
-      route: json['location'] ?? '',
-      startPoint: '',
-      endPoint: '',
+      route: routeFields.route,
+      startPoint: routeFields.start,
+      endPoint: routeFields.end,
       affectedRoads: (json['affectedRoads'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       alternateRoutes: (json['alternateRoutes'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       severity: json['severity'] ?? 'High',
@@ -94,12 +130,17 @@ class PoliceAlert {
   }
 
   Map<String, dynamic> toJson() {
+    final roads = <String>[
+      if (route.trim().isNotEmpty) route.trim(),
+      ...affectedRoads.map((r) => r.trim()).where((r) => r.isNotEmpty && r != route.trim()),
+    ];
     return {
       'title': title,
       'description': description,
       'type': type == PoliceAlertType.vipMovement ? 'vip_movement' : 'blockage',
-      'location': route,
-      'affectedRoads': affectedRoads,
+      'location': startPoint.trim().isNotEmpty ? startPoint.trim() : route.trim(),
+      if (endPoint.trim().isNotEmpty) 'area': endPoint.trim(),
+      if (roads.isNotEmpty) 'affectedRoads': roads,
       'alternateRoutes': alternateRoutes,
       'severity': severity.toLowerCase(),
       'reportedBy': 'police',

@@ -1431,8 +1431,8 @@ class _NavPanelState extends State<_NavPanel>
   void _onChanged(String value) {
     _debounce?.cancel();
     final q = value.trim();
-    if (q.length >= 3) {
-      _debounce = Timer(const Duration(milliseconds: 500), () {
+    if (q.length >= 2) {
+      _debounce = Timer(const Duration(milliseconds: 320), () {
         if (mounted) _routeProvider.searchSuggestions(q);
       });
     } else {

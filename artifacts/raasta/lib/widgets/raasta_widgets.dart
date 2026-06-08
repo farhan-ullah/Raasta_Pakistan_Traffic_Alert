@@ -707,7 +707,7 @@ class _RaastAutocompleteState extends State<RaastAutocomplete> {
   bool _showSuggestions = false;
 
   Future<void> _onChanged(String val) async {
-    if (val.length < 3) {
+    if (val.length < 2) {
       if (_suggestions.isNotEmpty) setState(() => _suggestions.clear());
       return;
     }

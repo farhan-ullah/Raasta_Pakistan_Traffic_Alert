@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { db, incidentsTable } from "@workspace/db";
 import {
   CreateIncidentBody,
@@ -8,11 +8,17 @@ import {
   UpdateIncidentParams,
   ListIncidentsQueryParams,
 } from "@workspace/api-zod";
-import { requirePoliceAuth } from "../middleware/policeAuth";
+import { requirePoliceAuth, verifyPoliceToken } from "../middleware/policeAuth";
 import { catchAsync } from "../lib/dbError";
 import { isInPakistan, whereIncidentInPakistan } from "../lib/pakistan-geo";
 
 const router: IRouter = Router();
+
+function isPoliceRequest(req: { headers: { authorization?: string } }): boolean {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return false;
+  return verifyPoliceToken(authHeader.slice(7));
+}
 
 router.get("/incidents/summary", catchAsync(async (_req, res): Promise<void> => {
   const allIncidents = await db.select().from(incidentsTable);
@@ -52,10 +58,21 @@ router.get("/incidents/active-map", catchAsync(async (_req, res): Promise<void> 
       severity: incidentsTable.severity,
       status: incidentsTable.status,
       location: incidentsTable.location,
+      reportedBy: incidentsTable.reportedBy,
+      isVerifiedByPolice: incidentsTable.isVerifiedByPolice,
       createdAt: incidentsTable.createdAt,
     })
     .from(incidentsTable)
-    .where(and(eq(incidentsTable.status, "active"), whereIncidentInPakistan()))
+    .where(
+      and(
+        eq(incidentsTable.status, "active"),
+        whereIncidentInPakistan(),
+        or(
+          eq(incidentsTable.reportedBy, "police"),
+          eq(incidentsTable.isVerifiedByPolice, true),
+        ),
+      ),
+    )
     .orderBy(desc(incidentsTable.createdAt));
   res.json(incidents.map(i => ({ ...i, id: String(i.id) })));
 }));
@@ -65,10 +82,26 @@ router.get("/incidents", catchAsync(async (req, res): Promise<void> => {
   let query = db.select().from(incidentsTable).$dynamic();
 
   const conditions = [whereIncidentInPakistan()];
+  const statusQ = req.query.status as string | undefined;
+  if (statusQ && statusQ !== "all") {
+    conditions.push(eq(incidentsTable.status, statusQ));
+  } else if (params.success && params.data.status && params.data.status !== "all") {
+    conditions.push(eq(incidentsTable.status, params.data.status));
+  }
+  const reportedByQ = req.query.reportedBy as string | undefined;
+  if (reportedByQ) {
+    conditions.push(eq(incidentsTable.reportedBy, reportedByQ));
+  }
+  const publishedQ = req.query.published as string | undefined;
+  if (publishedQ === "true") {
+    conditions.push(
+      or(
+        eq(incidentsTable.reportedBy, "police"),
+        eq(incidentsTable.isVerifiedByPolice, true),
+      )!,
+    );
+  }
   if (params.success) {
-    if (params.data.status && params.data.status !== "all") {
-      conditions.push(eq(incidentsTable.status, params.data.status));
-    }
     if (params.data.type && params.data.type !== "all") {
       conditions.push(eq(incidentsTable.type, params.data.type));
     }
@@ -105,6 +138,8 @@ router.post("/incidents", (req, res, next): void => {
     return;
   }
 
+  const policeSubmit = isPoliceRequest(req) || parsed.data.reportedBy === "police";
+
   const [incident] = await db
     .insert(incidentsTable)
     .values({
@@ -117,14 +152,15 @@ router.post("/incidents", (req, res, next): void => {
       lat: parsed.data.lat,
       lng: parsed.data.lng,
       severity: parsed.data.severity,
-      reportedBy: parsed.data.reportedBy,
+      status: policeSubmit ? "active" : "pending",
+      reportedBy: policeSubmit ? "police" : "user",
       officerName: parsed.data.officerName,
       affectedRoads: parsed.data.affectedRoads as string[] | undefined,
       alternateRoutes: parsed.data.alternateRoutes as string[] | undefined,
       estimatedDuration: parsed.data.estimatedDuration,
       mediaUrls: (parsed.data as any).mediaUrls as string[] | undefined,
       reporterPhone: (parsed.data as any).reporterPhone as string | undefined,
-      isVerifiedByPolice: (parsed.data as any).isVerifiedByPolice ?? false,
+      isVerifiedByPolice: policeSubmit,
     })
     .returning();
 
@@ -166,13 +202,23 @@ router.patch("/incidents/:id", requirePoliceAuth, catchAsync(async (req, res): P
     return;
   }
 
+  const rawBody = req.body as Record<string, unknown>;
   const updateData: Record<string, unknown> = {};
-  if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
+  const statusVal = parsed.data.status ?? rawBody.status;
+  if (statusVal === "active" || statusVal === "resolved" || statusVal === "pending") {
+    updateData.status = statusVal;
+  }
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.severity !== undefined) updateData.severity = parsed.data.severity;
   if (parsed.data.estimatedDuration !== undefined) updateData.estimatedDuration = parsed.data.estimatedDuration;
   if (parsed.data.endTime !== undefined) updateData.endTime = new Date(parsed.data.endTime);
   if (parsed.data.alternateRoutes !== undefined) updateData.alternateRoutes = parsed.data.alternateRoutes;
+  if (typeof rawBody.isVerifiedByPolice === "boolean") {
+    updateData.isVerifiedByPolice = rawBody.isVerifiedByPolice;
+  }
+  if (updateData.status === "active" && updateData.isVerifiedByPolice !== false) {
+    updateData.isVerifiedByPolice = true;
+  }
 
   const [incident] = await db
     .update(incidentsTable)

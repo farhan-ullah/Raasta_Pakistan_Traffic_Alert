@@ -10,13 +10,18 @@ class AlertProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   List<TrafficAlert> get alerts => _filtered;
+  List<TrafficAlert> get publishedIncidents =>
+      _alerts.where((a) => a.isPublished).toList();
   String get selectedSeverity => _selectedSeverity;
   String get selectedCity => _selectedCity;
 
   List<TrafficAlert> get _filtered {
     return _alerts.where((a) {
-      final severityMatch = _selectedSeverity == 'All' || a.severity.toLowerCase() == _selectedSeverity.toLowerCase();
-      final cityMatch = _selectedCity == 'All Cities' || a.city == _selectedCity;
+      if (!a.isPublished) return false;
+      final severityMatch = _selectedSeverity == 'All' ||
+          a.severity.toLowerCase() == _selectedSeverity.toLowerCase();
+      final cityMatch =
+          _selectedCity == 'All Cities' || a.city == _selectedCity;
       return severityMatch && cityMatch;
     }).toList();
   }
@@ -25,14 +30,21 @@ class AlertProvider extends ChangeNotifier {
     fetchAlerts();
   }
 
-  void setSeverity(String s) { _selectedSeverity = s; notifyListeners(); }
-  void setCity(String c) { _selectedCity = c; notifyListeners(); }
+  void setSeverity(String s) {
+    _selectedSeverity = s;
+    notifyListeners();
+  }
+
+  void setCity(String c) {
+    _selectedCity = c;
+    notifyListeners();
+  }
 
   Future<void> fetchAlerts() async {
     _isLoading = true;
     notifyListeners();
     try {
-      final data = await ApiService.get('/incidents');
+      final data = await ApiService.get('/incidents?status=active&published=true');
       if (data is List) {
         _alerts = data.map((json) => TrafficAlert.fromJson(json)).toList();
       }
@@ -44,18 +56,34 @@ class AlertProvider extends ChangeNotifier {
     }
   }
 
+  Future<TrafficAlert> submitReport(TrafficAlert alert) async {
+    try {
+      final response = await ApiService.post('/incidents', alert.toJson());
+      final created = TrafficAlert.fromJson(
+        response is Map<String, dynamic> ? response : {},
+      );
+      if (created.isPublished) {
+        _alerts.insert(0, created);
+        notifyListeners();
+        await fetchAlerts();
+      }
+      return created;
+    } catch (e) {
+      debugPrint('Error posting alert: $e');
+      rethrow;
+    }
+  }
+
   Future<void> addAlert(TrafficAlert alert) async {
-    // Add locally for optimistic UI
     _alerts.insert(0, alert);
     notifyListeners();
-    
+
     try {
       await ApiService.post('/incidents', alert.toJson());
-      // Refresh to get actual ID and data
       await fetchAlerts();
     } catch (e) {
       debugPrint('Error posting alert: $e');
-      _alerts.remove(alert); // Revert on failure
+      _alerts.remove(alert);
       notifyListeners();
       throw Exception('Failed to post alert');
     }

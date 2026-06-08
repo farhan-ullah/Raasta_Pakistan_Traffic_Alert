@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/traffic_alert.dart';
+import '../../providers/alert_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/raasta_widgets.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -15,8 +19,12 @@ class _ReportScreenState extends State<ReportScreen> {
   final _descCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
 
+  double? _lat;
+  double? _lng;
+
   bool _submitting = false;
   bool _submitted = false;
+  bool _submittedPending = false;
 
   final _types = [
     {'value': 'blockage', 'label': 'Road Blocked', 'icon': Icons.block_rounded},
@@ -33,35 +41,94 @@ class _ReportScreenState extends State<ReportScreen> {
     },
   ];
 
+  String _titleForType(String type) {
+    switch (type) {
+      case 'blockage':
+        return 'Road Blocked';
+      case 'accident':
+        return 'Accident';
+      case 'construction':
+        return 'Construction';
+      case 'congestion':
+        return 'Traffic Jam';
+      case 'vip_movement':
+        return 'VIP Movement';
+      default:
+        return 'Traffic Report';
+    }
+  }
+
   void _submit() async {
-    if (_locationCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please enter a location')));
+    if (_locationCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a location')),
+      );
+      return;
+    }
+    if (_lat == null || _lng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please pick a location from the suggestions'),
+        ),
+      );
       return;
     }
 
+    final isPolice = context.read<AuthProvider>().isPolice;
+    final description = [
+      if (_detailCtrl.text.trim().isNotEmpty) _detailCtrl.text.trim(),
+      if (_descCtrl.text.trim().isNotEmpty) _descCtrl.text.trim(),
+    ].join('\n');
+
+    final alert = TrafficAlert(
+      id: '',
+      title: _titleForType(_selectedType),
+      description: description.isEmpty ? _titleForType(_selectedType) : description,
+      severity: 'medium',
+      city: 'Islamabad',
+      location: _locationCtrl.text.trim(),
+      area: _detailCtrl.text.trim(),
+      type: _selectedType,
+      status: 'pending',
+      createdAt: DateTime.now(),
+      reportedBy: isPolice ? 'police' : 'user',
+      lat: _lat!,
+      lng: _lng!,
+      reporterPhone: _phoneCtrl.text.trim().isEmpty
+          ? null
+          : _phoneCtrl.text.trim(),
+    );
+
     setState(() => _submitting = true);
 
-    // Simulate network request
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (mounted) {
+    try {
+      final created = await context.read<AlertProvider>().submitReport(alert);
+      if (!mounted) return;
       setState(() {
         _submitting = false;
         _submitted = true;
+        _submittedPending = created.isPending;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit report: $e')),
+      );
     }
   }
 
   void _reset() {
     setState(() {
       _submitted = false;
+      _submittedPending = false;
       _selectedType = 'blockage';
       _locationCtrl.clear();
       _detailCtrl.clear();
       _descCtrl.clear();
       _phoneCtrl.clear();
+      _lat = null;
+      _lng = null;
     });
   }
 
@@ -109,9 +176,11 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Report submitted',
-                      style: TextStyle(
+                    Text(
+                      _submittedPending
+                          ? 'Report submitted'
+                          : 'Report published',
+                      style: const TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w900,
                         color: Color(0xFF1a1c1f),
@@ -119,9 +188,11 @@ class _ReportScreenState extends State<ReportScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Your incident report is now live. Local police authorities may contact you to verify details if necessary.',
-                      style: TextStyle(
+                    Text(
+                      _submittedPending
+                          ? 'Your report has been sent to the Police Dashboard with status "Submitted by User". It will appear on the map after police approval.'
+                          : 'Your incident report is now live on the map. Local police authorities may contact you to verify details if necessary.',
+                      style: const TextStyle(
                         fontSize: 16,
                         color: Color(0xFF414941),
                         height: 1.5,
@@ -247,13 +318,15 @@ class _ReportScreenState extends State<ReportScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        RaastTextField(
+                        RaastAutocomplete(
                           controller: _locationCtrl,
-                          hintText: 'e.g. DHA Lahore, F-7 Islamabad...',
-                          prefixIcon: const Icon(
-                            Icons.location_on_rounded,
-                            color: Color(0xFF717970),
-                          ),
+                          label: 'Search location',
+                          hint: 'e.g. DHA Lahore, F-7 Islamabad...',
+                          icon: Icons.location_on_rounded,
+                          onSelected: (s) => setState(() {
+                            _lat = s.coords.latitude;
+                            _lng = s.coords.longitude;
+                          }),
                         ),
                         const SizedBox(height: 12),
                         RaastTextField(

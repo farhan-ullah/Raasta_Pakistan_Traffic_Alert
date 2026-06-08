@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/traffic_alert.dart';
@@ -28,6 +26,15 @@ class GeocodeSuggestion {
     displayName: json['display_name'] as String,
     shortName: _shorten(json['display_name'] as String),
     coords: LatLng(double.parse(json['lat']), double.parse(json['lon'])),
+  );
+
+  factory GeocodeSuggestion.fromApiJson(Map json) => GeocodeSuggestion(
+    displayName: json['fullName'] as String? ?? '',
+    shortName: json['label'] as String? ?? '',
+    coords: LatLng(
+      (json['lat'] as num).toDouble(),
+      (json['lng'] as num).toDouble(),
+    ),
   );
 }
 
@@ -282,33 +289,21 @@ class RouteProvider extends ChangeNotifier {
   }
 
   Future<void> searchSuggestions(String query) async {
-    if (query.length < 3) {
+    final q = query.trim();
+    if (q.length < 2) {
       _suggestions = [];
       notifyListeners();
       return;
     }
     try {
-      final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
-        'q': query,
-        'format': 'json',
-        'limit': '6',
-        'countrycodes': 'pk',
-        'viewbox': '72.5,32.0,75.0,34.5',
-        'bounded': '0',
-      });
-      debugPrint('🚀 GEOCODE REQ: $uri');
-      final res = await http.get(
-        uri,
-        headers: {
-          'User-Agent':
-              'Raasta-Traffic-PK/2.0 (user_${DateTime.now().millisecondsSinceEpoch}@raasta.pk)',
-        },
+      debugPrint('🚀 GEOCODE REQ: /geocode/search?q=$q');
+      final data = await ApiService.get(
+        '/geocode/search?q=${Uri.encodeQueryComponent(q)}',
       );
-      debugPrint('✅ GEOCODE RES [${res.statusCode}]');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as List;
+      debugPrint('✅ GEOCODE RES [${(data as List?)?.length ?? 0} results]');
+      if (data is List) {
         _suggestions = data
-            .map((d) => GeocodeSuggestion.fromJson(d as Map))
+            .map((d) => GeocodeSuggestion.fromApiJson(d as Map))
             .toList();
       } else {
         _suggestions = [];
