@@ -74,7 +74,9 @@ class _ReportScreenState extends State<ReportScreen> {
       return;
     }
 
-    final isPolice = context.read<AuthProvider>().isPolice;
+    final auth = context.read<AuthProvider>();
+    final isPolice = auth.isPolice;
+    final user = auth.currentUser;
     final description = [
       if (_detailCtrl.text.trim().isNotEmpty) _detailCtrl.text.trim(),
       if (_descCtrl.text.trim().isNotEmpty) _descCtrl.text.trim(),
@@ -95,8 +97,9 @@ class _ReportScreenState extends State<ReportScreen> {
       lat: _lat!,
       lng: _lng!,
       reporterPhone: _phoneCtrl.text.trim().isEmpty
-          ? null
+          ? user?.phone
           : _phoneCtrl.text.trim(),
+      reporterUserId: user?.id,
     );
 
     setState(() => _submitting = true);

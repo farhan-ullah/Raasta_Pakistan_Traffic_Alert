@@ -1,26 +1,92 @@
 import { Router, type IRouter } from "express";
-import { eq, count } from "drizzle-orm";
+import { eq, count, or } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { incidentsTable, offersTable } from "@workspace/db";
+import {
+  incidentsTable,
+  redemptionsTable,
+  alertReadsTable,
+} from "@workspace/db";
 import { catchAsync } from "../lib/dbError";
 
 const router: IRouter = Router();
 
-// Mock endpoint for user activity stats since we don't have a fully authenticated user session flow
-router.get("/users/me/activity-stats", catchAsync(async (req, res): Promise<void> => {
-  // We'll simulate stats. In a real app we would use `req.user.id` to filter.
-  // We can query the number of incidents reported by 'user'
-  const [reportsCount] = await db
-    .select({ count: count() })
-    .from(incidentsTable)
-    .where(eq(incidentsTable.reportedBy, 'user'));
+function resolveUserId(req: { query: Record<string, unknown>; body?: Record<string, unknown> }): string | null {
+  const fromQuery = req.query.userId;
+  if (typeof fromQuery === "string" && fromQuery.trim()) {
+    return fromQuery.trim();
+  }
+  const fromBody = req.body?.userId;
+  if (typeof fromBody === "string" && fromBody.trim()) {
+    return fromBody.trim();
+  }
+  return null;
+}
 
-  // And some random numbers for Alerts Read and Offers Redeemed since they aren't fully tracked yet
+function resolvePhone(req: { query: Record<string, unknown> }): string | null {
+  const phone = req.query.phone;
+  if (typeof phone === "string" && phone.trim() && phone.trim() !== "0000") {
+    return phone.trim();
+  }
+  return null;
+}
+
+router.get("/users/me/activity-stats", catchAsync(async (req, res): Promise<void> => {
+  const userId = resolveUserId(req);
+  if (!userId) {
+    res.status(400).json({ error: "userId query parameter is required" });
+    return;
+  }
+
+  const phone = resolvePhone(req);
+
+  const reportConditions = [eq(incidentsTable.reporterUserId, userId)];
+  if (phone) {
+    reportConditions.push(eq(incidentsTable.reporterPhone, phone));
+  }
+
+  const [[redemptionsRow], [reportsRow], [readsRow]] = await Promise.all([
+    db
+      .select({ count: count() })
+      .from(redemptionsTable)
+      .where(eq(redemptionsTable.userId, userId)),
+    db
+      .select({ count: count() })
+      .from(incidentsTable)
+      .where(or(...reportConditions)),
+    db
+      .select({ count: count() })
+      .from(alertReadsTable)
+      .where(eq(alertReadsTable.userId, userId)),
+  ]);
+
   res.json({
-    alertsRead: 12,
-    reportsSubmitted: reportsCount.count || 0,
-    offersRedeemed: 3,
+    alertsRead: readsRow?.count ?? 0,
+    reportsSubmitted: reportsRow?.count ?? 0,
+    offersRedeemed: redemptionsRow?.count ?? 0,
   });
+}));
+
+router.post("/users/me/alert-reads", catchAsync(async (req, res): Promise<void> => {
+  const userId = resolveUserId(req);
+  const alertId = typeof req.body?.alertId === "string" ? req.body.alertId.trim() : "";
+
+  if (!userId) {
+    res.status(400).json({ error: "userId is required" });
+    return;
+  }
+  if (!alertId) {
+    res.status(400).json({ error: "alertId is required" });
+    return;
+  }
+
+  await db
+    .insert(alertReadsTable)
+    .values({ userId, alertId })
+    .onConflictDoNothing({
+      target: [alertReadsTable.userId, alertReadsTable.alertId],
+    });
+
+  res.status(201).json({ ok: true });
 }));
 
 export default router;

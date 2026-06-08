@@ -159,7 +159,8 @@ router.post("/incidents", (req, res, next): void => {
       alternateRoutes: parsed.data.alternateRoutes as string[] | undefined,
       estimatedDuration: parsed.data.estimatedDuration,
       mediaUrls: (parsed.data as any).mediaUrls as string[] | undefined,
-      reporterPhone: (parsed.data as any).reporterPhone as string | undefined,
+      reporterPhone: (parsed.data as { reporterPhone?: string }).reporterPhone,
+      reporterUserId: (parsed.data as { reporterUserId?: string }).reporterUserId,
       isVerifiedByPolice: policeSubmit,
     })
     .returning();

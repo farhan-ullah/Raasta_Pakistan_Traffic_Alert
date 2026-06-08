@@ -14,6 +14,7 @@ class TrafficAlert {
   final String reportedBy;
   final bool isVerifiedByPolice;
   final String? reporterPhone;
+  final String? reporterUserId;
   final double lat;
   final double lng;
 
@@ -33,6 +34,7 @@ class TrafficAlert {
     required this.reportedBy,
     this.isVerifiedByPolice = false,
     this.reporterPhone,
+    this.reporterUserId,
     required this.lat,
     required this.lng,
   });
@@ -102,6 +104,7 @@ class TrafficAlert {
       reportedBy: json['reportedBy'] ?? 'user',
       isVerifiedByPolice: json['isVerifiedByPolice'] == true,
       reporterPhone: json['reporterPhone'] as String?,
+      reporterUserId: json['reporterUserId'] as String?,
       lat: (json['lat'] as num?)?.toDouble() ?? 33.6844,
       lng: (json['lng'] as num?)?.toDouble() ?? 73.0479,
     );
@@ -121,6 +124,8 @@ class TrafficAlert {
       'lng': lng,
       if (reporterPhone != null && reporterPhone!.isNotEmpty)
         'reporterPhone': reporterPhone,
+      if (reporterUserId != null && reporterUserId!.isNotEmpty)
+        'reporterUserId': reporterUserId,
     };
   }
 }

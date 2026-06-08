@@ -8,7 +8,7 @@ import '../../widgets/raasta_widgets.dart';
 import '../police/police_screen.dart';
 import '../city_admin/city_admin_screen.dart';
 import '../business/business_screen.dart';
-import '../../services/api_service.dart';
+import '../../services/activity_service.dart';
 import '../settings/notifications_screen.dart';
 import '../settings/privacy_security_screen.dart';
 import '../settings/help_support_screen.dart';
@@ -30,21 +30,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchStats();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchStats());
   }
 
   Future<void> _fetchStats() async {
+    final user = context.read<AuthProvider>().currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _isLoadingStats = false);
+      return;
+    }
+
     try {
-      final res = await ApiService.get('/users/me/activity-stats');
-      if (res != null) {
-        if (mounted) {
-          setState(() {
-            _alertsRead = res['alertsRead'] ?? 0;
-            _reportsSubmitted = res['reportsSubmitted'] ?? 0;
-            _offersRedeemed = res['offersRedeemed'] ?? 0;
-            _isLoadingStats = false;
-          });
-        }
+      final stats = await ActivityService.fetchStats(
+        userId: user.id,
+        phone: user.phone,
+      );
+      if (mounted) {
+        setState(() {
+          _alertsRead = stats.alertsRead;
+          _reportsSubmitted = stats.reportsSubmitted;
+          _offersRedeemed = stats.offersRedeemed;
+          _isLoadingStats = false;
+        });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingStats = false);
@@ -60,8 +67,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: CustomScrollView(
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() => _isLoadingStats = true);
+          await _fetchStats();
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
           _ProfileHeader(
             user: user,
             roleColor: roleColor,
@@ -212,6 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

@@ -64,28 +64,31 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       extendBody: true,
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           IndexedStack(index: _index, children: _screens),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: MediaQuery.of(context).padding.bottom > 0
-                ? MediaQuery.of(context).padding.bottom
-                : 12,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
-                child: _RaastNavBar(
-                  selected: _index,
-                  items: _navItems,
-                  onTap: _onTap,
+          if (!keyboardOpen)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: MediaQuery.of(context).padding.bottom > 0
+                  ? MediaQuery.of(context).padding.bottom
+                  : 12,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: _RaastNavBar(
+                    selected: _index,
+                    items: _navItems,
+                    onTap: _onTap,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

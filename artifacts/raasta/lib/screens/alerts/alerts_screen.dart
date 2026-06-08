@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/traffic_alert.dart';
 import '../../providers/alert_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/activity_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/raasta_widgets.dart';
 
@@ -306,6 +308,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                 RaastButton(
                   onPressed: () {
                     if (titleCtrl.text.isEmpty) return;
+                    final user = context.read<AuthProvider>().currentUser;
                     provider.addAlert(
                       TrafficAlert(
                         id: 'u${DateTime.now().millisecondsSinceEpoch}',
@@ -321,6 +324,8 @@ class _AlertsScreenState extends State<AlertsScreen>
                         status: 'pending',
                         createdAt: DateTime.now(),
                         reportedBy: 'user',
+                        reporterUserId: user?.id,
+                        reporterPhone: user?.phone,
                         lat: 33.6844,
                         lng: 73.0479,
                       ),
@@ -599,7 +604,17 @@ class _AlertCardState extends State<_AlertCard>
       onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
         _ctrl.reverse();
-        setState(() => _expanded = !_expanded);
+        final expanding = !_expanded;
+        setState(() => _expanded = expanding);
+        if (expanding) {
+          final user = context.read<AuthProvider>().currentUser;
+          if (user != null) {
+            ActivityService.markAlertRead(
+              userId: user.id,
+              alertId: widget.alert.id,
+            );
+          }
+        }
       },
       onTapCancel: () => _ctrl.reverse(),
       child: AnimatedBuilder(

@@ -21,6 +21,7 @@ export const incidentsTable = pgTable("incidents", {
   estimatedDuration: text("estimated_duration"),
   mediaUrls: text("media_urls").array(),
   reporterPhone: text("reporter_phone"),
+  reporterUserId: text("reporter_user_id"),
   isVerifiedByPolice: boolean("is_verified_by_police").default(false),
   startTime: timestamp("start_time", { withTimezone: true }).defaultNow(),
   endTime: timestamp("end_time", { withTimezone: true }),
