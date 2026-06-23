@@ -70,6 +70,15 @@ function buildLabel(p: PhotonProps, fullName: string): string {
   return short.length > 96 ? `${short.slice(0, 93)}…` : short;
 }
 
+/** Photon bbox is a bias only — India (e.g. Delhi) can still appear inside the rough PK bounds. */
+function isPakistanPlace(p: PhotonProps, lat: number, lng: number): boolean {
+  const cc = p.countrycode?.trim().toLowerCase();
+  if (cc && cc !== "pk") return false;
+  const country = p.country?.trim().toLowerCase();
+  if (country && country !== "pakistan") return false;
+  return isInPakistan(lat, lng);
+}
+
 const router: IRouter = Router();
 
 router.get("/geocode/search", async (req: Request, res: Response) => {
@@ -97,28 +106,29 @@ router.get("/geocode/search", async (req: Request, res: Response) => {
     const data = (await upstream.json()) as { features?: PhotonFeature[] };
     const features = Array.isArray(data.features) ? data.features : [];
 
-    const out = features.map((f, i) => {
+    const out = [];
+    for (let i = 0; i < features.length; i++) {
+      const f = features[i]!;
       const p = f.properties ?? {};
       const coords = f.geometry?.coordinates;
       const lng = Array.isArray(coords) ? Number(coords[0]) : NaN;
       const lat = Array.isArray(coords) ? Number(coords[1]) : NaN;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !isPakistanPlace(p, lat, lng)) {
+        continue;
+      }
       const fullName = photonToFullName(p);
       const osmId = p.osm_id != null ? String(p.osm_id) : String(i);
       const osmType = p.osm_type ?? "X";
-      const id = `${osmType}-${osmId}`;
-
-      return {
-        id,
+      out.push({
+        id: `${osmType}-${osmId}`,
         label: buildLabel(p, fullName),
         fullName: fullName || q,
         state: p.state?.trim() || null,
         area: buildArea(p),
-        lat: Number.isFinite(lat) ? lat : 0,
-        lng: Number.isFinite(lng) ? lng : 0,
-      };
-    }).filter(
-      (x) => Number.isFinite(x.lat) && Number.isFinite(x.lng) && isInPakistan(x.lat, x.lng),
-    );
+        lat,
+        lng,
+      });
+    }
 
     return res.json(out);
   } catch {
